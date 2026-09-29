@@ -1,0 +1,19 @@
+<%- include('partials/header') %>
+<div class="card narrow">
+  <h1>Créer un compte</h1>
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <form method="post" action="/register" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="role-picker">
+      <label class="role-option"><input type="radio" name="role" value="candidate" <%= values.role !== 'recruiter' ? 'checked' : '' %>> <span>Je cherche un emploi</span></label>
+      <label class="role-option"><input type="radio" name="role" value="recruiter" <%= values.role === 'recruiter' ? 'checked' : '' %>> <span>Je recrute</span></label>
+    </div>
+    <label>Nom complet <input name="name" value="<%= values.name || '' %>" required></label>
+    <label>E-mail <input type="email" name="email" value="<%= values.email || '' %>" required></label>
+    <label>Mot de passe <small class="muted">(8 caractères minimum)</small> <input type="password" name="password" minlength="8" required></label>
+    <label>Titre professionnel <input name="headline" value="<%= values.headline || '' %>" placeholder="ex. Développeur Full-Stack"></label>
+    <label class="recruiter-only">Entreprise <small class="muted">(recruteurs)</small> <input name="company_name" value="<%= values.company_name || '' %>"></label>
+    <button class="btn">Créer mon compte</button>
+  </form>
+</div>
+<%- include('partials/footer') %>

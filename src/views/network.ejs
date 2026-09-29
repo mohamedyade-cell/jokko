@@ -1,0 +1,51 @@
+<%- include('partials/header') %>
+<% if (invitations.length) { %>
+<div class="card">
+  <h2>Invitations (<%= invitations.length %>)</h2>
+  <% invitations.forEach(function (i) { %>
+    <div class="person">
+      <%- include('partials/avatar', { name: i.name }) %>
+      <div class="grow"><a href="/profile/<%= i.user_id %>"><strong><%= i.name %></strong></a><div class="muted small"><%= i.headline %></div></div>
+      <form method="post" action="/network/invitations/<%= i.id %>/decline" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-outline btn-small">Ignorer</button>
+      </form>
+      <form method="post" action="/network/invitations/<%= i.id %>/accept" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small">Accepter</button>
+      </form>
+    </div>
+  <% }) %>
+</div>
+<% } %>
+
+<div class="card">
+  <h2>Trouver des personnes</h2>
+  <form method="get" action="/network" class="search-bar">
+    <input name="q" value="<%= q %>" placeholder="Nom, métier, compétence, ville">
+    <button class="btn">Rechercher</button>
+  </form>
+  <div class="people-grid">
+    <% suggestions.forEach(function (u) { %>
+      <div class="person-card">
+        <%- include('partials/avatar', { name: u.name, size: 'lg' }) %>
+        <a href="/profile/<%= u.id %>"><strong><%= u.name %></strong></a>
+        <div class="muted small"><%= u.headline %></div>
+        <form method="post" action="/network/connect/<%= u.id %>">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-outline btn-small">Se connecter</button>
+        </form>
+      </div>
+    <% }) %>
+    <% if (!suggestions.length) { %><p class="muted">Aucune suggestion.</p><% } %>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Mes relations (<%= connections.length %>)</h2>
+  <% connections.forEach(function (u) { %>
+    <div class="person">
+      <%- include('partials/avatar', { name: u.name }) %>
+      <div class="grow"><a href="/profile/<%= u.id %>"><strong><%= u.name %></strong></a><div class="muted small"><%= u.headline %></div></div>
+    </div>
+  <% }) %>
+  <% if (!connections.length) { %><p class="muted">Vous n'avez pas encore de relations.</p><% } %>
+</div>
+<%- include('partials/footer') %>

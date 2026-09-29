@@ -1,0 +1,88 @@
+<%- include('../partials/header') %>
+<a href="/ats/jobs/<%= application.job_id %>" class="small">← Pipeline « <%= application.job_title %> »</a>
+<div class="layout-2">
+  <div>
+    <div class="card profile-head">
+      <%- include('../partials/avatar', { name: application.candidate_name, size: 'xl' }) %>
+      <div class="grow">
+        <h1><%= application.candidate_name %></h1>
+        <% if (candidate && candidate.headline) { %><p class="lead"><%= candidate.headline %></p><% } %>
+        <p class="muted">
+          <a href="mailto:<%= application.candidate_email %>"><%= application.candidate_email %></a>
+          <% if (application.candidate_phone) { %> · <%= application.candidate_phone %><% } %>
+        </p>
+        <p class="small">Candidature via <span class="source source-<%= application.source %>"><%= h.sourceLabel(application.source) %></span> · <%= h.timeAgo(application.created_at) %>
+          <% if (candidate) { %> · <a href="/profile/<%= candidate.id %>">Profil Jokko</a><% } %></p>
+      </div>
+    </div>
+
+    <% if (application.cv_path) { %>
+      <div class="card row"><span class="grow">📄 <%= application.cv_original_name %></span><a class="btn btn-outline btn-small" href="/ats/applications/<%= application.id %>/cv">Télécharger le CV</a></div>
+    <% } %>
+
+    <% if (application.cover_letter) { %>
+      <div class="card"><h2>Lettre de motivation</h2><p class="pre"><%= application.cover_letter %></p></div>
+    <% } %>
+
+    <% if (candidate) { %>
+      <% if (h.splitSkills(candidate.skills).length) { %>
+        <div class="card"><h2>Compétences</h2><div class="tags"><% h.splitSkills(candidate.skills).forEach(function (s) { %><span class="tag"><%= s %></span><% }) %></div></div>
+      <% } %>
+      <% if (experiences.length) { %>
+        <div class="card"><h2>Expérience</h2>
+          <% experiences.forEach(function (e) { %>
+            <div class="experience"><strong><%= e.title %></strong> · <%= e.company %><div class="muted small"><%= e.start_date %> – <%= e.end_date || "aujourd'hui" %></div></div>
+          <% }) %>
+        </div>
+      <% } %>
+    <% } %>
+
+    <div class="card">
+      <h2>Notes de l'équipe</h2>
+      <form method="post" action="/ats/applications/<%= application.id %>/notes" class="form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <textarea name="content" rows="3" placeholder="Retour d'entretien, points forts, points de vigilance…" required></textarea>
+        <div class="right"><button class="btn btn-small">Ajouter la note</button></div>
+      </form>
+      <% notes.forEach(function (n) { %>
+        <div class="note"><div class="small"><strong><%= n.author_name %></strong> <span class="muted">· <%= h.timeAgo(n.created_at) %></span></div><p class="pre"><%= n.content %></p></div>
+      <% }) %>
+    </div>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h3>Étape</h3>
+      <form method="post" action="/ats/applications/<%= application.id %>/stage" class="form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <select name="stage">
+          <% STAGES.forEach(function (s) { %><option value="<%= s.key %>" <%= s.key === application.stage ? 'selected' : '' %>><%= s.label %></option><% }) %>
+        </select>
+        <button class="btn btn-small">Mettre à jour</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Évaluation</h3>
+      <form method="post" action="/ats/applications/<%= application.id %>/rating" class="rating">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% for (var i = 1; i <= 5; i++) { %>
+          <button name="rating" value="<%= i === application.rating ? 0 : i %>" class="star <%= i <= application.rating ? 'on' : '' %>" title="<%= i %>/5">★</button>
+        <% } %>
+      </form>
+    </div>
+    <div class="card">
+      <h3>Historique</h3>
+      <% events.forEach(function (e) { %>
+        <div class="small event">
+          <% if (e.from_stage) { %>
+            <%= e.actor_name || 'Système' %> : <%= h.stageLabel(e.from_stage) %> → <strong><%= h.stageLabel(e.to_stage) %></strong>
+          <% } else { %>
+            Candidature reçue via <%= h.sourceLabel(application.source) %>
+          <% } %>
+          <div class="muted"><%= h.timeAgo(e.created_at) %></div>
+        </div>
+      <% }) %>
+    </div>
+  </aside>
+</div>
+<%- include('../partials/footer') %>

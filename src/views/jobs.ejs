@@ -1,0 +1,18 @@
+<%- include('partials/header') %>
+<form class="card search-filters" method="get" action="/jobs">
+  <input name="q" value="<%= filters.q %>" placeholder="Métier, compétence, entreprise">
+  <input name="location" value="<%= filters.location %>" placeholder="Ville">
+  <select name="contract">
+    <option value="">Tous les contrats</option>
+    <% CONTRACT_TYPES.forEach(function (c) { %><option <%= filters.contract === c ? 'selected' : '' %>><%= c %></option><% }) %>
+  </select>
+  <label class="checkbox"><input type="checkbox" name="remote" value="1" <%= filters.remote ? 'checked' : '' %>> Télétravail</label>
+  <button class="btn">Rechercher</button>
+</form>
+
+<p class="muted"><%= jobs.length %> offre<%= jobs.length > 1 ? 's' : '' %></p>
+<div class="stack">
+  <% jobs.forEach(function (job) { %><%- include('partials/job-card', { job }) %><% }) %>
+  <% if (!jobs.length) { %><div class="card muted">Aucune offre ne correspond à votre recherche.</div><% } %>
+</div>
+<%- include('partials/footer') %>

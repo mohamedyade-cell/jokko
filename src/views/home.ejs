@@ -1,0 +1,34 @@
+<%- include('partials/header') %>
+<section class="hero">
+  <h1>Votre carrière et vos recrutements, au même endroit.</h1>
+  <p class="lead">Jokko réunit un réseau professionnel, un moteur d'offres d'emploi et un ATS complet. Publiez une offre une fois : elle est diffusée sur Jokko, LinkedIn et Indeed, et toutes les candidatures arrivent dans le même pipeline.</p>
+  <form class="search-bar" action="/jobs" method="get">
+    <input name="q" placeholder="Métier, compétence, entreprise">
+    <input name="location" placeholder="Ville">
+    <button class="btn">Rechercher</button>
+  </form>
+  <div class="hero-actions">
+    <a class="btn btn-outline" href="/register?role=candidate">Je cherche un emploi</a>
+    <a class="btn btn-outline" href="/register?role=recruiter">Je recrute</a>
+  </div>
+</section>
+
+<section class="grid-3">
+  <div class="card"><h3>👥 Réseau</h3><p>Profil, expériences, relations et fil d'actualité, comme sur LinkedIn.</p></div>
+  <div class="card"><h3>🔎 Emplois</h3><p>Recherche par mot-clé, ville, contrat, télétravail, et candidature en un clic, comme sur Indeed.</p></div>
+  <div class="card"><h3>📋 ATS</h3><p>Pipeline kanban, notes, notation, historique et multidiffusion LinkedIn / Indeed.</p></div>
+</section>
+
+<section class="stats">
+  <div><strong><%= stats.jobs %></strong><span>offres actives</span></div>
+  <div><strong><%= stats.companies %></strong><span>entreprises</span></div>
+  <div><strong><%= stats.members %></strong><span>membres</span></div>
+</section>
+
+<% if (latestJobs.length) { %>
+<h2>Dernières offres</h2>
+<div class="stack">
+  <% latestJobs.forEach(function (job) { %><%- include('partials/job-card', { job }) %><% }) %>
+</div>
+<% } %>
+<%- include('partials/footer') %>

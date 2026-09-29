@@ -1,0 +1,57 @@
+<%- include('../partials/header') %>
+<div class="row">
+  <h1 class="grow">ATS · <%= currentUser.company_name %></h1>
+  <a class="btn" href="/ats/jobs/new">+ Nouvelle offre</a>
+</div>
+
+<div class="kpis">
+  <% STAGES.forEach(function (s) { %>
+    <div class="kpi"><strong><%= byStage[s.key] %></strong><span class="stage stage-<%= s.key %>"><%= s.label %></span></div>
+  <% }) %>
+</div>
+
+<div class="layout-2">
+  <div class="card">
+    <h2>Offres</h2>
+    <% if (!jobs.length) { %><p class="muted">Aucune offre. Créez votre première offre : elle sera diffusée sur Jokko, LinkedIn et Indeed.</p><% } %>
+    <table class="table">
+      <% if (jobs.length) { %><thead><tr><th>Poste</th><th>Candidats</th><th>Diffusion</th><th>Statut</th></tr></thead><% } %>
+      <tbody>
+      <% jobs.forEach(function (j) { %>
+        <tr>
+          <td><a href="/ats/jobs/<%= j.id %>"><strong><%= j.title %></strong></a><div class="muted small"><%= j.location %> · <%= j.contract_type %></div></td>
+          <td><%= j.total %><% if (j.new_count) { %> <span class="badge"><%= j.new_count %> nouveau<%= j.new_count > 1 ? 'x' : '' %></span><% } %></td>
+          <td class="small">Jokko<%= j.publish_linkedin ? ' · LinkedIn' : '' %><%= j.publish_indeed ? ' · Indeed' : '' %></td>
+          <td><span class="tag <%= j.status === 'open' ? 'tag-green' : 'tag-red' %>"><%= j.status === 'open' ? 'Ouverte' : 'Clôturée' %></span></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h3>Sources des candidatures</h3>
+      <% Object.keys(bySource).forEach(function (k) { %>
+        <div class="row"><span class="source source-<%= k %>"><%= h.sourceLabel(k) %></span><strong class="push-right"><%= bySource[k] %></strong></div>
+      <% }) %>
+    </div>
+    <div class="card">
+      <h3>Dernières candidatures</h3>
+      <% recent.forEach(function (a) { %>
+        <div class="mini-job">
+          <a href="/ats/applications/<%= a.id %>"><%= a.candidate_name %></a>
+          <div class="muted small"><%= a.job_title %> · <span class="source source-<%= a.source %>"><%= h.sourceLabel(a.source) %></span> · <%= h.timeAgo(a.created_at) %></div>
+        </div>
+      <% }) %>
+      <% if (!recent.length) { %><p class="muted small">Aucune candidature.</p><% } %>
+    </div>
+    <div class="card small">
+      <h3>Multidiffusion</h3>
+      <p>Déclarez ces flux XML dans vos espaces employeurs :</p>
+      <p>Indeed : <code>/feeds/indeed.xml</code><br>LinkedIn : <code>/feeds/linkedin.xml</code></p>
+      <p class="muted">Les candidatures reçues via LinkedIn / Indeed arrivent automatiquement via le webhook <code>/api/integrations/&lt;source&gt;/applications</code>.</p>
+    </div>
+  </aside>
+</div>
+<%- include('../partials/footer') %>

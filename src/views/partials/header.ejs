@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · Jokko</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="/">jokko</a>
+    <nav class="nav">
+      <% if (currentUser) { %>
+        <a href="/" class="<%= path === '/' ? 'active' : '' %>">Accueil</a>
+        <a href="/network" class="<%= path.startsWith('/network') ? 'active' : '' %>">Réseau<% if (pendingInvites) { %> <span class="badge"><%= pendingInvites %></span><% } %></a>
+        <a href="/jobs" class="<%= path.startsWith('/jobs') ? 'active' : '' %>">Emplois</a>
+        <% if (currentUser.role === 'recruiter') { %>
+          <a href="/ats" class="<%= path.startsWith('/ats') ? 'active' : '' %>">ATS</a>
+        <% } else { %>
+          <a href="/applications" class="<%= path.startsWith('/applications') ? 'active' : '' %>">Candidatures</a>
+        <% } %>
+        <a href="/profile/<%= currentUser.id %>" class="<%= path.startsWith('/profile') ? 'active' : '' %>">Profil</a>
+        <form method="post" action="/logout" class="inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="link">Déconnexion</button>
+        </form>
+      <% } else { %>
+        <a href="/jobs">Emplois</a>
+        <a href="/login">Connexion</a>
+        <a href="/register" class="btn btn-small">S'inscrire</a>
+      <% } %>
+    </nav>
+  </div>
+</header>
+<main class="container">
+<% if (flash) { %>
+  <div class="flash flash-<%= flash.type %>"><%= flash.message %></div>
+<% } %>

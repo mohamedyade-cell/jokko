@@ -1,0 +1,36 @@
+<%- include('partials/header') %>
+<div class="card">
+  <h1>Mon profil</h1>
+  <form method="post" action="/profile/edit" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Nom complet <input name="name" value="<%= currentUser.name %>" required maxlength="120"></label>
+    <label>Titre professionnel <input name="headline" value="<%= currentUser.headline %>" maxlength="200"></label>
+    <label>Ville <input name="location" value="<%= currentUser.location %>" maxlength="120"></label>
+    <label>Compétences <small class="muted">(séparées par des virgules)</small> <input name="skills" value="<%= currentUser.skills %>"></label>
+    <label>À propos <textarea name="about" rows="5"><%= currentUser.about %></textarea></label>
+    <button class="btn">Enregistrer</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Expériences</h2>
+  <% experiences.forEach(function (e) { %>
+    <div class="experience row">
+      <div class="grow"><strong><%= e.title %></strong> · <%= e.company %> <span class="muted small"><%= e.start_date %> – <%= e.end_date || "aujourd'hui" %></span></div>
+      <form method="post" action="/profile/experiences/<%= e.id %>/delete" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="link small">Supprimer</button>
+      </form>
+    </div>
+  <% }) %>
+  <form method="post" action="/profile/experiences" class="form form-grid">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Intitulé du poste <input name="title" required></label>
+    <label>Entreprise <input name="company" required></label>
+    <label>Début <input type="month" name="start_date"></label>
+    <label>Fin <small class="muted">(vide si en poste)</small> <input type="month" name="end_date"></label>
+    <label class="span-2">Description <textarea name="description" rows="2"></textarea></label>
+    <div class="span-2"><button class="btn btn-outline">Ajouter l'expérience</button></div>
+  </form>
+</div>
+<%- include('partials/footer') %>

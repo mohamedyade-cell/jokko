@@ -1,0 +1,52 @@
+<%- include('../partials/header') %>
+<div class="row wrap">
+  <div class="grow">
+    <a href="/ats" class="small">← Tableau de bord</a>
+    <h1><%= job.title %> <span class="tag <%= job.status === 'open' ? 'tag-green' : 'tag-red' %>"><%= job.status === 'open' ? 'Ouverte' : 'Clôturée' %></span></h1>
+    <p class="muted"><%= job.location %> · <%= job.contract_type %> · <%= total %> candidat<%= total > 1 ? 's' : '' %></p>
+  </div>
+  <a class="btn btn-outline" href="/jobs/<%= job.id %>">Voir l'annonce</a>
+  <a class="btn btn-outline" href="/ats/jobs/<%= job.id %>/edit">Modifier</a>
+  <form method="post" action="/ats/jobs/<%= job.id %>/status" class="inline">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button class="btn btn-outline"><%= job.status === 'open' ? 'Clôturer' : 'Réouvrir' %></button>
+  </form>
+</div>
+
+<div class="source-filter">
+  Source :
+  <a href="?" class="<%= !source ? 'active' : '' %>">Toutes</a>
+  <% ['jokko', 'linkedin', 'indeed'].forEach(function (s) { %>
+    <a href="?source=<%= s %>" class="<%= source === s ? 'active' : '' %>"><%= h.sourceLabel(s) %></a>
+  <% }) %>
+</div>
+
+<div class="kanban" data-csrf="<%= csrfToken %>">
+  <% columns.forEach(function (col) { %>
+    <section class="kanban-col" data-stage="<%= col.key %>">
+      <header><span class="stage stage-<%= col.key %>"><%= col.label %></span> <span class="count"><%= col.items.length %></span></header>
+      <div class="kanban-list">
+        <% col.items.forEach(function (a) { %>
+          <article class="kanban-card" draggable="true" data-id="<%= a.id %>">
+            <a href="/ats/applications/<%= a.id %>"><strong><%= a.candidate_name %></strong></a>
+            <div class="muted small ellipsis" title="<%= a.candidate_email %>"><%= a.candidate_email %></div>
+            <div class="kanban-meta">
+              <span class="source source-<%= a.source %>"><%= h.sourceLabel(a.source) %></span>
+              <span class="stars"><%= '★'.repeat(a.rating) %><span class="muted"><%= '★'.repeat(5 - a.rating) %></span></span>
+            </div>
+            <div class="muted small"><%= h.timeAgo(a.created_at) %><%= a.cv_path ? ' · CV' : '' %><%= a.notes_count ? ' · ' + a.notes_count + ' note' + (a.notes_count > 1 ? 's' : '') : '' %></div>
+            <form method="post" action="/ats/applications/<%= a.id %>/stage" class="no-js-move">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="hidden" name="back" value="pipeline">
+              <select name="stage" onchange="this.form.submit()">
+                <% STAGES.forEach(function (s) { %><option value="<%= s.key %>" <%= s.key === a.stage ? 'selected' : '' %>><%= s.label %></option><% }) %>
+              </select>
+            </form>
+          </article>
+        <% }) %>
+      </div>
+    </section>
+  <% }) %>
+</div>
+<script src="/kanban.js"></script>
+<%- include('../partials/footer') %>

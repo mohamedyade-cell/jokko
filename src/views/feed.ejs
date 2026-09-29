@@ -1,0 +1,52 @@
+<%- include('partials/header') %>
+<div class="layout-3">
+  <aside>
+    <div class="card center">
+      <%- include('partials/avatar', { name: currentUser.name, size: 'lg' }) %>
+      <h3><a href="/profile/<%= currentUser.id %>"><%= currentUser.name %></a></h3>
+      <p class="muted"><%= currentUser.headline || 'Ajoutez un titre à votre profil' %></p>
+      <a class="btn btn-outline btn-small" href="/profile/edit">Modifier mon profil</a>
+    </div>
+  </aside>
+
+  <section>
+    <form class="card form" method="post" action="/posts">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <textarea name="content" rows="3" placeholder="Partagez une actualité, une offre, une réussite…" required maxlength="3000"></textarea>
+      <div class="right"><button class="btn">Publier</button></div>
+    </form>
+
+    <% if (!posts.length) { %>
+      <div class="card muted">Votre fil est vide. <a href="/network">Développez votre réseau</a> pour voir les publications de vos relations.</div>
+    <% } %>
+    <% posts.forEach(function (post) { %>
+      <article class="card post">
+        <div class="post-head">
+          <%- include('partials/avatar', { name: post.author_name }) %>
+          <div>
+            <a href="/profile/<%= post.author_id %>"><strong><%= post.author_name %></strong></a>
+            <div class="muted small"><%= post.author_headline %> · <%= h.timeAgo(post.created_at) %></div>
+          </div>
+          <% if (post.author_id === currentUser.id) { %>
+            <form method="post" action="/posts/<%= post.id %>/delete" class="inline push-right">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="link small">Supprimer</button>
+            </form>
+          <% } %>
+        </div>
+        <p class="pre"><%= post.content %></p>
+      </article>
+    <% }) %>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h3>Offres récentes</h3>
+      <% latestJobs.forEach(function (job) { %>
+        <div class="mini-job"><a href="/jobs/<%= job.id %>"><%= job.title %></a><div class="muted small"><%= job.company_name %> · <%= job.location %></div></div>
+      <% }) %>
+      <a href="/jobs" class="small">Voir toutes les offres →</a>
+    </div>
+  </aside>
+</div>
+<%- include('partials/footer') %>

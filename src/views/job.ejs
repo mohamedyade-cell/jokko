@@ -1,0 +1,49 @@
+<%- include('partials/header') %>
+<div class="layout-2">
+  <article class="card">
+    <h1><%= job.title %></h1>
+    <p class="lead"><%= job.company_name %> · <%= job.location %></p>
+    <div class="tags">
+      <span class="tag"><%= job.contract_type %></span>
+      <% if (job.remote) { %><span class="tag tag-green">Télétravail</span><% } %>
+      <% if (job.salary_min || job.salary_max) { %><span class="tag"><%= h.formatSalary(job.salary_min, job.salary_max) %></span><% } %>
+      <% if (job.status !== 'open') { %><span class="tag tag-red">Clôturée</span><% } %>
+      <span class="muted small">Publiée <%= h.timeAgo(job.created_at) %></span>
+    </div>
+    <h2>Description du poste</h2>
+    <div class="pre"><%= job.description %></div>
+    <% if (job.company_description) { %>
+      <h2>À propos de <%= job.company_name %></h2>
+      <p class="pre"><%= job.company_description %></p>
+    <% } %>
+  </article>
+
+  <aside class="card apply-box">
+    <% if (!currentUser) { %>
+      <h3>Intéressé(e) ?</h3>
+      <a class="btn full" href="/login?next=/jobs/<%= job.id %>">Se connecter pour postuler</a>
+      <p class="muted small center">ou <a href="/register">créer un compte</a></p>
+    <% } else if (currentUser.role === 'recruiter') { %>
+      <% if (currentUser.company_id === job.company_id) { %>
+        <a class="btn full" href="/ats/jobs/<%= job.id %>">Voir le pipeline</a>
+      <% } else { %>
+        <p class="muted">Les recruteurs ne peuvent pas postuler.</p>
+      <% } %>
+    <% } else if (existing) { %>
+      <h3>Candidature envoyée ✓</h3>
+      <p>Statut : <span class="stage stage-<%= existing.stage %>"><%= h.stageLabel(existing.stage) %></span></p>
+      <a href="/applications">Suivre mes candidatures</a>
+    <% } else if (job.status === 'open') { %>
+      <h3>Postuler</h3>
+      <form method="post" action="/jobs/<%= job.id %>/apply" enctype="multipart/form-data" class="form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <p class="small muted">Votre profil Jokko (<%= currentUser.name %>, <%= currentUser.email %>) sera transmis au recruteur.</p>
+        <label>Téléphone <input name="phone" type="tel"></label>
+        <label>CV <small class="muted">(PDF, DOC, DOCX – 5 Mo max)</small> <input type="file" name="cv" accept=".pdf,.doc,.docx"></label>
+        <label>Lettre de motivation <textarea name="cover_letter" rows="5"></textarea></label>
+        <button class="btn full">Envoyer ma candidature</button>
+      </form>
+    <% } %>
+  </aside>
+</div>
+<%- include('partials/footer') %>

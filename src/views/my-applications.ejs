@@ -1,0 +1,22 @@
+<%- include('partials/header') %>
+<h1>Mes candidatures</h1>
+<% if (!applications.length) { %>
+  <div class="card muted">Aucune candidature pour l'instant. <a href="/jobs">Parcourir les offres</a></div>
+<% } else { %>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Poste</th><th>Entreprise</th><th>Envoyée</th><th>Statut</th></tr></thead>
+    <tbody>
+    <% applications.forEach(function (a) { %>
+      <tr>
+        <td><a href="/jobs/<%= a.job_id %>"><%= a.title %></a><% if (a.job_status !== 'open') { %> <span class="tag tag-red">Clôturée</span><% } %></td>
+        <td><%= a.company_name %></td>
+        <td class="muted"><%= h.timeAgo(a.created_at) %></td>
+        <td><span class="stage stage-<%= a.stage %>"><%= h.stageLabel(a.stage) %></span></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+<%- include('partials/footer') %>

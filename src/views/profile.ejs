@@ -1,0 +1,60 @@
+<%- include('partials/header') %>
+<div class="card profile-head">
+  <%- include('partials/avatar', { name: profile.name, size: 'xl' }) %>
+  <div class="grow">
+    <h1><%= profile.name %></h1>
+    <p class="lead"><%= profile.headline %></p>
+    <p class="muted">
+      <%= profile.location %><% if (profile.location) { %> · <% } %><%= connectionsCount %> relation<%= connectionsCount > 1 ? 's' : '' %>
+      <% if (profile.role === 'recruiter' && profile.company_name) { %> · Recrute pour <strong><%= profile.company_name %></strong><% } %>
+    </p>
+  </div>
+  <div>
+    <% if (relation === 'self') { %>
+      <a class="btn btn-outline" href="/profile/edit">Modifier</a>
+    <% } else if (relation === 'connected') { %>
+      <form method="post" action="/network/remove/<%= profile.id %>" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btn-outline">✓ En relation</button>
+      </form>
+    <% } else if (relation === 'sent') { %>
+      <span class="tag">Invitation envoyée</span>
+    <% } else { %>
+      <form method="post" action="/network/connect/<%= profile.id %>" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn"><%= relation === 'received' ? 'Accepter l’invitation' : 'Se connecter' %></button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<% if (profile.about) { %>
+<div class="card"><h2>Infos</h2><p class="pre"><%= profile.about %></p></div>
+<% } %>
+
+<% if (h.splitSkills(profile.skills).length) { %>
+<div class="card"><h2>Compétences</h2><div class="tags">
+  <% h.splitSkills(profile.skills).forEach(function (s) { %><span class="tag"><%= s %></span><% }) %>
+</div></div>
+<% } %>
+
+<% if (experiences.length) { %>
+<div class="card"><h2>Expérience</h2>
+  <% experiences.forEach(function (e) { %>
+    <div class="experience">
+      <strong><%= e.title %></strong> · <%= e.company %>
+      <div class="muted small"><%= e.start_date %> – <%= e.end_date || "aujourd'hui" %></div>
+      <% if (e.description) { %><p class="pre"><%= e.description %></p><% } %>
+    </div>
+  <% }) %>
+</div>
+<% } %>
+
+<% if (posts.length) { %>
+<div class="card"><h2>Activité</h2>
+  <% posts.forEach(function (p) { %>
+    <div class="experience"><p class="pre"><%= p.content %></p><div class="muted small"><%= h.timeAgo(p.created_at) %></div></div>
+  <% }) %>
+</div>
+<% } %>
+<%- include('partials/footer') %>

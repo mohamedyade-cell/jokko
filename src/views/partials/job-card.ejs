@@ -1,0 +1,10 @@
+<a class="card job-card" href="/jobs/<%= job.id %>">
+  <div class="job-card-title"><%= job.title %></div>
+  <div class="muted"><%= job.company_name %> · <%= job.location %></div>
+  <div class="tags">
+    <span class="tag"><%= job.contract_type %></span>
+    <% if (job.remote) { %><span class="tag tag-green">Télétravail</span><% } %>
+    <% if (job.salary_min || job.salary_max) { %><span class="tag"><%= h.formatSalary(job.salary_min, job.salary_max) %></span><% } %>
+    <span class="muted small"><%= h.timeAgo(job.created_at) %></span>
+  </div>
+</a>

@@ -1,0 +1,28 @@
+<%- include('../partials/header') %>
+<div class="card">
+  <h1><%= title %></h1>
+  <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
+  <form method="post" action="<%= job.id ? '/ats/jobs/' + job.id : '/ats/jobs' %>" class="form form-grid">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label class="span-2">Intitulé du poste <input name="title" value="<%= job.title || '' %>" required maxlength="200"></label>
+    <label>Lieu <input name="location" value="<%= job.location || '' %>" required placeholder="ex. Dakar"></label>
+    <label>Type de contrat
+      <select name="contract_type" required>
+        <option value="">Choisir…</option>
+        <% CONTRACT_TYPES.forEach(function (c) { %><option <%= job.contract_type === c ? 'selected' : '' %>><%= c %></option><% }) %>
+      </select>
+    </label>
+    <label>Salaire min. (FCFA / mois) <input name="salary_min" inputmode="numeric" value="<%= job.salary_min ?? '' %>"></label>
+    <label>Salaire max. (FCFA / mois) <input name="salary_max" inputmode="numeric" value="<%= job.salary_max ?? '' %>"></label>
+    <label class="checkbox span-2"><input type="checkbox" name="remote" value="1" <%= job.remote ? 'checked' : '' %>> Télétravail possible</label>
+    <label class="span-2">Description <textarea name="description" rows="12" required><%= job.description || '' %></textarea></label>
+    <fieldset class="span-2">
+      <legend>Diffusion</legend>
+      <label class="checkbox"><input type="checkbox" checked disabled> Jokko</label>
+      <label class="checkbox"><input type="checkbox" name="publish_linkedin" value="1" <%= job.publish_linkedin ? 'checked' : '' %>> LinkedIn (flux XML)</label>
+      <label class="checkbox"><input type="checkbox" name="publish_indeed" value="1" <%= job.publish_indeed ? 'checked' : '' %>> Indeed (flux XML)</label>
+    </fieldset>
+    <div class="span-2"><button class="btn"><%= job.id ? 'Enregistrer' : 'Publier l’offre' %></button></div>
+  </form>
+</div>
+<%- include('../partials/footer') %>
