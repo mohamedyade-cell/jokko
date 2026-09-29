@@ -1,0 +1,28 @@
+<article class="card talent-card">
+  <%- include('pitch', { user: c, preload: 'none' }) %>
+  <div class="talent-body">
+    <div class="row">
+      <div class="grow">
+        <a href="/profile/<%= c.id %>"><strong><%= c.unlocked ? c.name : h.shortName(c.name) %></strong></a>
+        <div class="muted small"><%= c.headline %><%= c.location ? ' · ' + c.location : '' %></div>
+      </div>
+      <%- include('score', { skills: c.skill_score, referral: c.referral_score, compact: true }) %>
+    </div>
+    <% if (c.available_now) { %><span class="tag tag-green">Disponible immédiatement</span><% } %>
+    <%- include('badges', { badges: badges[c.id] || [], emptyText: 'Aucun badge pour le moment' }) %>
+    <% if (c.unlocked) { %>
+      <a class="btn btn-outline btn-small" href="/profile/<%= c.id %>">✓ CV débloqué – voir le profil</a>
+    <% } else if (jobs.length) { %>
+      <form method="post" action="/ats/talents/<%= c.id %>/unlock" class="unlock-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="back" value="<%= urgent ? 'urgent' : 'talents' %>">
+        <select name="job_id" aria-label="Poste">
+          <% jobs.forEach(function (j) { %><option value="<%= j.id %>"><%= j.title %></option><% }) %>
+        </select>
+        <button class="btn btn-small">Débloquer le CV</button>
+      </form>
+    <% } else { %>
+      <a class="small" href="/ats/jobs/new">Créez une offre pour débloquer des CV</a>
+    <% } %>
+  </div>
+</article>

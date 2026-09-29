@@ -92,7 +92,7 @@ router.post('/jobs/:id/apply', requireRole('candidate'), (req, res, next) => {
         discard();
         req.session.flash = { type: 'error', message: 'Vous avez déjà postulé à cette offre.' };
       } else {
-        req.session.flash = { type: 'success', message: 'Candidature envoyée ! Suivez son avancement dans « Mes candidatures ».' };
+        req.session.flash = { type: 'success', message: 'Candidature envoyée ! Votre pitch vidéo, vos badges et votre Jokko Score sont transmis au recruteur.' };
       }
       res.redirect(`/jobs/${job.id}`);
     });

@@ -1,0 +1,8 @@
+<% if (user.video_path) { %>
+  <div class="pitch">
+    <video controls playsinline preload="<%= typeof preload !== 'undefined' ? preload : 'metadata' %>" src="/videos/<%= user.id %>?v=<%= encodeURIComponent(user.video_updated_at || '') %>"></video>
+    <% if (user.video_language) { %><span class="pitch-lang"><%= h.languageLabel(user.video_language) %></span><% } %>
+  </div>
+<% } else { %>
+  <div class="pitch pitch-empty"><span>🎥</span><small>Pas encore de pitch vidéo</small></div>
+<% } %>

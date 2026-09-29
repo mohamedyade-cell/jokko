@@ -1,7 +1,7 @@
 <%- include('partials/header') %>
 <section class="hero">
-  <h1>Votre carrière et vos recrutements, au même endroit.</h1>
-  <p class="lead">Jokko réunit un réseau professionnel, un moteur d'offres d'emploi et un ATS complet. Publiez une offre une fois : elle est diffusée sur Jokko, LinkedIn et Indeed, et toutes les candidatures arrivent dans le même pipeline.</p>
+  <h1>Un CV ne suffit pas à juger un candidat.</h1>
+  <p class="lead">Sur Jokko, les candidats se présentent en vidéo, prouvent leurs compétences par des quiz et font monter leur Jokko Score. Les recruteurs repèrent les bons profils en quelques minutes et les suivent jusqu'à l'embauche, sans quitter la plateforme.</p>
   <form class="search-bar" action="/jobs" method="get">
     <input name="q" placeholder="Métier, compétence, entreprise">
     <input name="location" placeholder="Ville">
@@ -13,10 +13,11 @@
   </div>
 </section>
 
-<section class="grid-3">
-  <div class="card"><h3>👥 Réseau</h3><p>Profil, expériences, relations et fil d'actualité, comme sur LinkedIn.</p></div>
-  <div class="card"><h3>🔎 Emplois</h3><p>Recherche par mot-clé, ville, contrat, télétravail, et candidature en un clic, comme sur Indeed.</p></div>
-  <div class="card"><h3>📋 ATS</h3><p>Pipeline kanban, notes, notation, historique et multidiffusion LinkedIn / Indeed.</p></div>
+<section class="pillars">
+  <div class="card pillar"><span class="pillar-icon">🎥</span><h3>Pitch vidéo</h3><p>90 secondes pour montrer la personne derrière le profil : voix, attitude, motivation. En français, en wolof ou en anglais.</p></div>
+  <div class="card pillar"><span class="pillar-icon">✅</span><h3>Quiz de compétences</h3><p>Prouver plutôt que déclarer : Excel, comptabilité, service client, sécurité… Trois niveaux, questions tirées au hasard, temps limité.</p></div>
+  <div class="card pillar"><span class="pillar-icon">🏅</span><h3>Badges et Jokko Score</h3><p>Quiz réussis, certifications vérifiées, écoles Jokko Campus : chaque compétence prouvée devient un badge et fait monter le score.</p></div>
+  <div class="card pillar"><span class="pillar-icon">📋</span><h3>ATS intégré</h3><p>Du repérage à l'embauche : CVthèque filtrable, déblocage du CV, pipeline en 6 étapes, besoin urgent. Même pour les PME.</p></div>
 </section>
 
 <section class="stats">

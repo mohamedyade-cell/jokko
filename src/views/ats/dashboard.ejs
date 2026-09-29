@@ -1,10 +1,20 @@
 <%- include('../partials/header') %>
-<div class="row">
+<div class="row wrap">
   <h1 class="grow">ATS · <%= currentUser.company_name %></h1>
-  <a class="btn" href="/ats/jobs/new">+ Nouvelle offre</a>
+  <a class="btn btn-outline" href="/ats/urgent">⚡ Besoin urgent</a>
+  <a class="btn btn-outline" href="/ats/talents">CVthèque</a>
+  <% if (usage.canOpenJob) { %><a class="btn" href="/ats/jobs/new">+ Nouvelle offre</a><% } %>
+</div>
+
+<div class="plan-bar small">
+  Offre <strong><%= usage.plan.label %></strong> ·
+  <%= usage.openJobs %><%= usage.plan.maxOpenJobs ? ' / ' + usage.plan.maxOpenJobs : '' %> offre<%= usage.openJobs > 1 ? 's' : '' %> ouverte<%= usage.openJobs > 1 ? 's' : '' %> ·
+  <%= usage.unlocksThisMonth %><%= usage.plan.monthlyUnlocks ? ' / ' + usage.plan.monthlyUnlocks : '' %> CV débloqué<%= usage.unlocksThisMonth > 1 ? 's' : '' %> ce mois-ci
+  <% if (usage.planKey === 'pme') { %><span class="muted"> · L'offre Corporate lève ces limites pour les gros volumes.</span><% } %>
 </div>
 
 <div class="kpis">
+  <div class="kpi"><strong><%= byStage.recue %></strong><span class="stage stage-recue">À examiner</span></div>
   <% STAGES.forEach(function (s) { %>
     <div class="kpi"><strong><%= byStage[s.key] %></strong><span class="stage stage-<%= s.key %>"><%= s.label %></span></div>
   <% }) %>
@@ -15,12 +25,12 @@
     <h2>Offres</h2>
     <% if (!jobs.length) { %><p class="muted">Aucune offre. Créez votre première offre : elle sera diffusée sur Jokko, LinkedIn et Indeed.</p><% } %>
     <table class="table">
-      <% if (jobs.length) { %><thead><tr><th>Poste</th><th>Candidats</th><th>Diffusion</th><th>Statut</th></tr></thead><% } %>
+      <% if (jobs.length) { %><thead><tr><th>Poste</th><th>Pipeline</th><th>Diffusion</th><th>Statut</th></tr></thead><% } %>
       <tbody>
       <% jobs.forEach(function (j) { %>
         <tr>
           <td><a href="/ats/jobs/<%= j.id %>"><strong><%= j.title %></strong></a><div class="muted small"><%= j.location %> · <%= j.contract_type %></div></td>
-          <td><%= j.total %><% if (j.new_count) { %> <span class="badge"><%= j.new_count %> nouveau<%= j.new_count > 1 ? 'x' : '' %></span><% } %></td>
+          <td><%= j.total %><% if (j.inbox_count) { %> <span class="badge"><%= j.inbox_count %> à examiner</span><% } %></td>
           <td class="small">Jokko<%= j.publish_linkedin ? ' · LinkedIn' : '' %><%= j.publish_indeed ? ' · Indeed' : '' %></td>
           <td><span class="tag <%= j.status === 'open' ? 'tag-green' : 'tag-red' %>"><%= j.status === 'open' ? 'Ouverte' : 'Clôturée' %></span></td>
         </tr>
@@ -40,7 +50,7 @@
       <h3>Dernières candidatures</h3>
       <% recent.forEach(function (a) { %>
         <div class="mini-job">
-          <a href="/ats/applications/<%= a.id %>"><%= a.candidate_name %></a>
+          <a href="/ats/applications/<%= a.id %>"><%= a.stage === 'recue' ? h.shortName(a.candidate_name) : a.candidate_name %></a><% if (a.stage === 'recue') { %> <span class="stage stage-recue">à examiner</span><% } %>
           <div class="muted small"><%= a.job_title %> · <span class="source source-<%= a.source %>"><%= h.sourceLabel(a.source) %></span> · <%= h.timeAgo(a.created_at) %></div>
         </div>
       <% }) %>

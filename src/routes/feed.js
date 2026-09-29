@@ -1,5 +1,6 @@
 const express = require('express');
 const { requireLogin } = require('../auth');
+const { getScore } = require('../score');
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ router.get('/', (req, res) => {
     )
     .all(req.user.id);
 
-  res.render('feed', { title: 'Fil d’actualité', posts, latestJobs });
+  res.render('feed', { title: 'Fil d’actualité', posts, latestJobs, score: getScore(db, req.user.id) });
 });
 
 router.post('/posts', requireLogin, (req, res) => {

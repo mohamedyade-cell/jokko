@@ -1,0 +1,42 @@
+<%- include('../partials/header') %>
+<div class="row wrap">
+  <div class="grow">
+    <h1><%= urgent ? '⚡ Besoin urgent' : 'CVthèque' %></h1>
+    <p class="muted"><%= urgent ? 'Journaliers et intérimaires disponibles immédiatement, les profils les plus fiables en premier (classés par Jokko Score).' : 'Repérez les talents par badge, école et Jokko Score. Regardez leur pitch, puis débloquez le CV complet pour les faire entrer dans votre pipeline.' %></p>
+  </div>
+  <div class="quota small">
+    Offre <strong><%= usage.plan.label %></strong><br>
+    <% if (usage.unlocksLeft === null) { %>Déblocages illimités<% } else { %><strong><%= usage.unlocksLeft %></strong> déblocage<%= usage.unlocksLeft > 1 ? 's' : '' %> restant<%= usage.unlocksLeft > 1 ? 's' : '' %> ce mois-ci<% } %>
+  </div>
+</div>
+<div class="tabs">
+  <a href="/ats/talents" class="<%= urgent ? '' : 'active' %>">CVthèque</a>
+  <a href="/ats/urgent" class="<%= urgent ? 'active' : '' %>">⚡ Besoin urgent</a>
+</div>
+
+<form class="card talent-filters" method="get" action="<%= urgent ? '/ats/urgent' : '/ats/talents' %>">
+  <input name="q" value="<%= filters.q %>" placeholder="Métier, compétence">
+  <input name="location" value="<%= filters.location %>" placeholder="Ville">
+  <select name="badge">
+    <option value="">Tous les badges</option>
+    <% quizzes.forEach(function (q) { %><option value="<%= q.skillKey %>" <%= filters.badge === q.skillKey ? 'selected' : '' %>><%= q.title %></option><% }) %>
+  </select>
+  <select name="level" aria-label="Niveau minimum">
+    <% Object.keys(LEVELS).forEach(function (k) { %><option value="<%= k %>" <%= filters.level === k ? 'selected' : '' %>><%= LEVELS[k].label %> et +</option><% }) %>
+  </select>
+  <select name="school">
+    <option value="">Toutes les écoles</option>
+    <% schools.forEach(function (s) { %><option value="<%= s.id %>" <%= filters.school === s.id ? 'selected' : '' %>><%= s.name %></option><% }) %>
+  </select>
+  <label class="inline-label">Score min. <input type="number" name="min_score" min="0" max="100" step="5" value="<%= filters.minScore || '' %>" placeholder="0"></label>
+  <label class="checkbox"><input type="checkbox" name="video" value="1" <%= filters.video ? 'checked' : '' %>> Avec pitch vidéo</label>
+  <% if (!urgent) { %><label class="checkbox"><input type="checkbox" name="available" value="1" <%= filters.available ? 'checked' : '' %>> Disponible immédiatement</label><% } %>
+  <button class="btn">Filtrer</button>
+</form>
+
+<p class="muted"><%= candidates.length %> profil<%= candidates.length > 1 ? 's' : '' %> · triés par Jokko Score</p>
+<div class="talent-grid">
+  <% candidates.forEach(function (c) { %><%- include('../partials/candidate-card', { c }) %><% }) %>
+</div>
+<% if (!candidates.length) { %><div class="card muted">Aucun candidat ne correspond à ces critères.</div><% } %>
+<%- include('../partials/footer') %>

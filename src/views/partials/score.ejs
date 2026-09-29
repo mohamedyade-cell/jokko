@@ -1,0 +1,7 @@
+<div class="jscore<%= typeof compact !== 'undefined' && compact ? ' jscore-compact' : '' %>" title="Jokko Score : compétences prouvées (sur 100) et parrainage, calculés séparément">
+  <div class="jscore-ring" style="--p: <%= skills %>"><strong><%= skills %></strong><small>/100</small></div>
+  <div class="jscore-text">
+    <span class="jscore-label">Jokko Score</span>
+    <% if (referral) { %><span class="jscore-ref">+<%= referral %> parrainage</span><% } %>
+  </div>
+</div>

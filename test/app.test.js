@@ -1,56 +1,7 @@
 const { test, describe, before } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
 const request = require('supertest');
-const { createApp } = require('../src/app');
-
-const TOKEN = 'test-integration-token';
-
-function makeApp() {
-  const uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jokko-uploads-'));
-  return createApp({ dbPath: ':memory:', uploadDir, sessionSecret: 'test', baseUrl: 'https://jokko.test', integrationToken: TOKEN });
-}
-
-async function csrf(agent, url = '/login') {
-  const res = await agent.get(url);
-  const m = res.text.match(/name="_csrf" value="([a-f0-9]+)"/);
-  assert.ok(m, `jeton CSRF introuvable sur ${url}`);
-  return m[1];
-}
-
-async function register(app, { role, email, name, company }) {
-  const agent = request.agent(app);
-  const _csrf = await csrf(agent, '/register');
-  const res = await agent
-    .post('/register')
-    .type('form')
-    .send({ _csrf, role, email, name, password: 'motdepasse123', company_name: company || '' });
-  assert.equal(res.status, 302, res.text);
-  return agent;
-}
-
-async function createJob(recruiter, fields = {}) {
-  const _csrf = await csrf(recruiter, '/ats/jobs/new');
-  const res = await recruiter
-    .post('/ats/jobs')
-    .type('form')
-    .send({
-      _csrf,
-      title: 'Développeur Node.js',
-      description: 'Construire des API.',
-      location: 'Dakar',
-      contract_type: 'CDI',
-      salary_min: '900000',
-      salary_max: '1200000',
-      publish_linkedin: '1',
-      publish_indeed: '1',
-      ...fields,
-    });
-  assert.equal(res.status, 302, res.text);
-  return Number(res.headers.location.split('/').pop());
-}
+const { TOKEN, makeApp, csrf, register, createJob } = require('./helpers');
 
 describe('Jokko', () => {
   let app;
@@ -88,7 +39,7 @@ describe('Jokko', () => {
     assert.equal(res.status, 403);
   });
 
-  test('un candidat postule avec CV et la candidature apparaît dans le pipeline', async () => {
+  test('un candidat postule avec CV : candidature reçue, masquée, puis retenue dans le pipeline', async () => {
     const _csrf = await csrf(candidate, `/jobs/${jobId}`);
     let res = await candidate
       .post(`/jobs/${jobId}/apply`)
@@ -99,10 +50,27 @@ describe('Jokko', () => {
 
     res = await candidate.get('/applications');
     assert.match(res.text, /Développeur Node\.js/);
-    assert.match(res.text, /Nouveau/);
+    assert.match(res.text, /Envoyée/);
 
+    // Avant déblocage : nom abrégé, pas d'e-mail, pas de CV.
+    const appId = app.locals.db.prepare("SELECT id FROM applications WHERE candidate_email = 'moussa@test.sn'").get().id;
     res = await recruiter.get(`/ats/jobs/${jobId}`);
-    assert.match(res.text, /Moussa Diop/);
+    assert.match(res.text, /Candidatures reçues \(1\)/);
+    assert.match(res.text, /Moussa D\./);
+    res = await recruiter.get(`/ats/applications/${appId}`);
+    assert.doesNotMatch(res.text, /moussa@test\.sn/);
+    assert.equal((await recruiter.get(`/ats/applications/${appId}/cv`)).status, 404);
+    const csrfR = await csrf(recruiter, `/ats/applications/${appId}`);
+    res = await recruiter.post(`/ats/applications/${appId}/stage`).set('X-CSRF-Token', csrfR).send({ stage: 'entretien' });
+    assert.equal(res.status, 409);
+
+    // Retenir = déblocage gratuit, entrée dans le pipeline à l'étape « Nouveau ».
+    await recruiter.post(`/ats/applications/${appId}/retain`).type('form').send({ _csrf: csrfR });
+    res = await recruiter.get(`/ats/applications/${appId}`);
+    assert.match(res.text, /moussa@test\.sn/);
+    assert.equal(app.locals.db.prepare('SELECT stage FROM applications WHERE id = ?').get(appId).stage, 'nouveau');
+    const unlock = app.locals.db.prepare('SELECT charged FROM unlocks WHERE candidate_id = (SELECT candidate_id FROM applications WHERE id = ?)').get(appId);
+    assert.equal(unlock.charged, 0);
 
     // Deuxième candidature refusée
     const _csrf2 = await csrf(candidate, `/jobs/${jobId}`);
@@ -134,6 +102,7 @@ describe('Jokko', () => {
 
     res = await recruiter.get(`/ats/applications/${appId}`);
     assert.match(res.text, /Excellent entretien/);
+    assert.match(res.text, /Reçue → <strong>Nouveau<\/strong>/);
     assert.match(res.text, /Nouveau → <strong>Entretien<\/strong>/);
 
     const row = app.locals.db.prepare('SELECT stage, rating FROM applications WHERE id = ?').get(appId);
@@ -147,8 +116,10 @@ describe('Jokko', () => {
     assert.match(res.text, /Entretien/);
   });
 
-  test('un recruteur d’une autre entreprise ne voit pas les candidatures', async () => {
-    const other = await register(app, { role: 'recruiter', email: 'rh@concurrent.test', name: 'Autre RH', company: 'Concurrent' });
+  test('un recruteur d’une autre entreprise ne voit pas les candidatures, même en reprenant le même nom', async () => {
+    // S'inscrire avec le nom d'une entreprise existante crée un espace séparé.
+    const other = await register(app, { role: 'recruiter', email: 'rh@concurrent.test', name: 'Autre RH', company: 'Acme' });
+    assert.equal((await other.get('/ats')).text.includes('Développeur Node.js'), false);
     const appId = app.locals.db.prepare('SELECT id FROM applications LIMIT 1').get().id;
     assert.equal((await other.get(`/ats/applications/${appId}`)).status, 404);
     assert.equal((await other.get(`/ats/applications/${appId}/cv`)).status, 404);

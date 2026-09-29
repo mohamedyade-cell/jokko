@@ -1,0 +1,12 @@
+<% if (typeof badges !== 'undefined' && badges && badges.length) { %>
+<div class="badges">
+  <% badges.forEach(function (b) { %>
+    <span class="jbadge jbadge-<%= b.kind %> <%= b.level ? 'lvl-' + b.level : '' %>" title="<%= b.kind === 'quiz' ? 'Quiz Jokko réussi' : (b.kind === 'campus' ? 'Parcours vérifié Jokko Campus' : 'Certification vérifiée') %><%= b.expires_at ? ' · valable jusqu’au ' + h.formatDate(b.expires_at) : '' %>">
+      <span class="jbadge-icon"><%= b.kind === 'quiz' ? '✓' : (b.kind === 'campus' ? '🎓' : '★') %></span>
+      <%= b.label %><% if (b.level) { %> <em><%= h.levelLabel(b.level) %></em><% } %>
+    </span>
+  <% }) %>
+</div>
+<% } else if (typeof emptyText !== 'undefined') { %>
+  <p class="muted small"><%= emptyText %></p>
+<% } %>

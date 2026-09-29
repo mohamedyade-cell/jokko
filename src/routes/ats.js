@@ -1,7 +1,9 @@
 const express = require('express');
 const path = require('node:path');
 const { requireRole } = require('../auth');
-const { STAGES, STAGE_KEYS, CONTRACT_TYPES, SOURCES, transaction } = require('../db');
+const { STAGES, STAGE_KEYS, INBOX_STAGE, DISMISSED_STAGE, CONTRACT_TYPES, SOURCES, transaction } = require('../db');
+const { skillScoreSql, referralScoreSql, activeBadges } = require('../score');
+const { usage, retainApplication } = require('../access');
 
 const router = express.Router();
 const recruiterOnly = requireRole('recruiter');
@@ -14,6 +16,7 @@ function companyJob(db, user, id) {
   return db.prepare('SELECT * FROM jobs WHERE id = ? AND company_id = ?').get(id, user.company_id);
 }
 
+// Cloisonnement : une candidature n'est accessible qu'à l'entreprise propriétaire de l'offre.
 function companyApplication(db, user, id) {
   return db
     .prepare(
@@ -21,6 +24,11 @@ function companyApplication(db, user, id) {
        WHERE a.id = ? AND j.company_id = ?`,
     )
     .get(id, user.company_id);
+}
+
+// CV et coordonnées ne sont visibles qu'une fois la candidature entrée dans le pipeline.
+function inPipeline(application) {
+  return STAGE_KEYS.includes(application.stage);
 }
 
 function parseJobForm(body) {
@@ -45,22 +53,26 @@ function parseJobForm(body) {
   return { values, error };
 }
 
+function jobLimitMessage(u) {
+  return `L'offre ${u.plan.label} permet ${u.plan.maxOpenJobs} offres ouvertes en même temps. Clôturez une offre ou passez à l'offre Corporate.`;
+}
+
 router.get('/ats', recruiterOnly, (req, res) => {
   const db = req.app.locals.db;
   const cid = req.user.company_id;
   const jobs = db
     .prepare(
-      `SELECT j.*, (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id) AS total,
-              (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id AND a.stage = 'nouveau') AS new_count
+      `SELECT j.*, (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id AND a.stage NOT IN ('recue', 'ecartee')) AS total,
+              (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id AND a.stage = 'recue') AS inbox_count
        FROM jobs j WHERE j.company_id = ? ORDER BY j.status = 'open' DESC, j.created_at DESC, j.id DESC`,
     )
     .all(cid);
 
-  const byStage = Object.fromEntries(STAGE_KEYS.map((k) => [k, 0]));
+  const byStage = Object.fromEntries([...STAGE_KEYS, INBOX_STAGE].map((k) => [k, 0]));
   for (const r of db
     .prepare('SELECT a.stage, COUNT(*) AS n FROM applications a JOIN jobs j ON j.id = a.job_id WHERE j.company_id = ? GROUP BY a.stage')
     .all(cid))
-    byStage[r.stage] = r.n;
+    if (r.stage in byStage) byStage[r.stage] = r.n;
 
   const bySource = Object.fromEntries(SOURCES.map((k) => [k, 0]));
   for (const r of db
@@ -71,22 +83,31 @@ router.get('/ats', recruiterOnly, (req, res) => {
   const recent = db
     .prepare(
       `SELECT a.id, a.candidate_name, a.stage, a.source, a.created_at, j.title AS job_title
-       FROM applications a JOIN jobs j ON j.id = a.job_id WHERE j.company_id = ? ORDER BY a.created_at DESC, a.id DESC LIMIT 8`,
+       FROM applications a JOIN jobs j ON j.id = a.job_id WHERE j.company_id = ? AND a.stage != 'ecartee'
+       ORDER BY a.created_at DESC, a.id DESC LIMIT 8`,
     )
     .all(cid);
 
-  res.render('ats/dashboard', { title: 'Tableau de bord ATS', jobs, byStage, bySource, recent });
+  res.render('ats/dashboard', { title: 'Tableau de bord ATS', jobs, byStage, bySource, recent, usage: usage(db, cid) });
 });
 
 router.get('/ats/jobs/new', recruiterOnly, (req, res) => {
+  const u = usage(req.app.locals.db, req.user.company_id);
+  if (!u.canOpenJob) {
+    req.session.flash = { type: 'error', message: jobLimitMessage(u) };
+    return res.redirect('/ats');
+  }
   res.render('ats/job-form', { title: 'Nouvelle offre', job: { publish_linkedin: 1, publish_indeed: 1 }, error: null });
 });
 
 router.post('/ats/jobs', recruiterOnly, (req, res) => {
+  const db = req.app.locals.db;
+  const u = usage(db, req.user.company_id);
+  if (!u.canOpenJob) return res.status(403).render('ats/job-form', { title: 'Nouvelle offre', job: req.body, error: jobLimitMessage(u) });
   const { values, error } = parseJobForm(req.body);
   if (error) return res.status(400).render('ats/job-form', { title: 'Nouvelle offre', job: values, error });
   const v = values;
-  const id = req.app.locals.db
+  const id = db
     .prepare(
       `INSERT INTO jobs (company_id, author_id, title, description, location, contract_type, remote, salary_min, salary_max, publish_linkedin, publish_indeed)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -122,6 +143,11 @@ router.post('/ats/jobs/:id/status', recruiterOnly, (req, res) => {
   const job = companyJob(db, req.user, Number(req.params.id));
   if (!job) return notFound(res, 'Offre introuvable');
   const status = job.status === 'open' ? 'closed' : 'open';
+  const u = usage(db, req.user.company_id);
+  if (status === 'open' && !u.canOpenJob) {
+    req.session.flash = { type: 'error', message: jobLimitMessage(u) };
+    return res.redirect(`/ats/jobs/${job.id}`);
+  }
   db.prepare("UPDATE jobs SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, job.id);
   req.session.flash = { type: 'success', message: status === 'open' ? 'Offre réouverte.' : 'Offre clôturée : elle est retirée des flux LinkedIn / Indeed.' };
   res.redirect(`/ats/jobs/${job.id}`);
@@ -134,19 +160,26 @@ router.get('/ats/jobs/:id', recruiterOnly, (req, res) => {
   const source = SOURCES.includes(req.query.source) ? req.query.source : '';
   const applications = db
     .prepare(
-      `SELECT a.id, a.candidate_name, a.candidate_email, a.stage, a.rating, a.source, a.created_at, a.cv_path,
+      `SELECT a.id, a.candidate_id, a.candidate_name, a.candidate_email, a.stage, a.rating, a.source, a.created_at, a.cv_path,
+              u.headline, u.location, u.video_path, u.cv_path AS profile_cv_path,
+              COALESCE(${skillScoreSql()}, 0) AS skill_score, COALESCE(${referralScoreSql()}, 0) AS referral_score,
               (SELECT COUNT(*) FROM application_notes n WHERE n.application_id = a.id) AS notes_count
-       FROM applications a WHERE a.job_id = ? AND (? = '' OR a.source = ?) ORDER BY a.rating DESC, a.created_at DESC`,
+       FROM applications a LEFT JOIN users u ON u.id = a.candidate_id
+       WHERE a.job_id = ? AND (? = '' OR a.source = ?) AND a.stage != ?
+       ORDER BY skill_score DESC, a.rating DESC, a.created_at DESC`,
     )
-    .all(job.id, source, source);
+    .all(job.id, source, source, DISMISSED_STAGE);
+  const inbox = applications.filter((a) => a.stage === INBOX_STAGE);
   const columns = STAGES.map((s) => ({ ...s, items: applications.filter((a) => a.stage === s.key) }));
-  res.render('ats/pipeline', { title: job.title, job, columns, source, total: applications.length });
+  const badges = activeBadges(db, applications.filter((a) => a.candidate_id).map((a) => a.candidate_id));
+  res.render('ats/pipeline', { title: job.title, job, columns, inbox, badges, source, total: applications.length - inbox.length });
 });
 
 router.get('/ats/applications/:id', recruiterOnly, (req, res) => {
   const db = req.app.locals.db;
   const application = companyApplication(db, req.user, Number(req.params.id));
   if (!application) return notFound(res, 'Candidature introuvable');
+  const unlocked = inPipeline(application);
   const notes = db
     .prepare('SELECT n.*, u.name AS author_name FROM application_notes n JOIN users u ON u.id = n.author_id WHERE n.application_id = ? ORDER BY n.created_at DESC, n.id DESC')
     .all(application.id);
@@ -154,10 +187,39 @@ router.get('/ats/applications/:id', recruiterOnly, (req, res) => {
     .prepare('SELECT e.*, u.name AS actor_name FROM application_events e LEFT JOIN users u ON u.id = e.actor_id WHERE e.application_id = ? ORDER BY e.created_at DESC, e.id DESC')
     .all(application.id);
   const candidate = application.candidate_id
-    ? db.prepare('SELECT id, name, headline, location, about, skills FROM users WHERE id = ?').get(application.candidate_id)
+    ? db
+        .prepare(
+          `SELECT u.id, u.name, u.headline, u.location, u.about, u.skills, u.video_path, u.video_language, u.available_now, u.cv_path, u.cv_original_name,
+                  ${skillScoreSql()} AS skill_score, ${referralScoreSql()} AS referral_score
+           FROM users u WHERE u.id = ?`,
+        )
+        .get(application.candidate_id)
     : null;
-  const experiences = candidate ? db.prepare('SELECT * FROM experiences WHERE user_id = ? ORDER BY start_date DESC, id DESC').all(candidate.id) : [];
-  res.render('ats/application', { title: application.candidate_name, application, notes, events, candidate, experiences });
+  const experiences = candidate && unlocked ? db.prepare('SELECT * FROM experiences WHERE user_id = ? ORDER BY start_date DESC, id DESC').all(candidate.id) : [];
+  const badges = candidate ? activeBadges(db, candidate.id)[candidate.id] : [];
+  res.render('ats/application', { title: unlocked ? application.candidate_name : 'Candidature reçue', application, unlocked, notes, events, candidate, experiences, badges });
+});
+
+// Candidature reçue → pipeline (déblocage gratuit : le candidat a postulé lui-même).
+router.post('/ats/applications/:id/retain', recruiterOnly, (req, res) => {
+  const db = req.app.locals.db;
+  const application = companyApplication(db, req.user, Number(req.params.id));
+  if (!application) return notFound(res, 'Candidature introuvable');
+  if (!inPipeline(application)) retainApplication(db, req.user, application);
+  res.redirect(`/ats/applications/${application.id}`);
+});
+
+router.post('/ats/applications/:id/dismiss', recruiterOnly, (req, res) => {
+  const db = req.app.locals.db;
+  const application = companyApplication(db, req.user, Number(req.params.id));
+  if (!application) return notFound(res, 'Candidature introuvable');
+  if (application.stage === INBOX_STAGE) {
+    transaction(db, () => {
+      db.prepare("UPDATE applications SET stage = ?, updated_at = datetime('now') WHERE id = ?").run(DISMISSED_STAGE, application.id);
+      db.prepare('INSERT INTO application_events (application_id, actor_id, from_stage, to_stage) VALUES (?, ?, ?, ?)').run(application.id, req.user.id, INBOX_STAGE, DISMISSED_STAGE);
+    });
+  }
+  res.redirect(`/ats/jobs/${application.job_id}`);
 });
 
 router.post('/ats/applications/:id/stage', recruiterOnly, (req, res) => {
@@ -167,6 +229,7 @@ router.post('/ats/applications/:id/stage', recruiterOnly, (req, res) => {
   if (!application) return wantsJson ? res.status(404).json({ error: 'not_found' }) : notFound(res, 'Candidature introuvable');
   const stage = req.body.stage;
   if (!STAGE_KEYS.includes(stage)) return wantsJson ? res.status(400).json({ error: 'invalid_stage' }) : res.redirect(`/ats/applications/${application.id}`);
+  if (!inPipeline(application)) return wantsJson ? res.status(409).json({ error: 'not_unlocked' }) : res.redirect(`/ats/applications/${application.id}`);
 
   if (stage !== application.stage) {
     transaction(db, () => {
@@ -196,11 +259,20 @@ router.post('/ats/applications/:id/notes', recruiterOnly, (req, res) => {
   res.redirect(`/ats/applications/${application.id}`);
 });
 
+// CV joint à la candidature, ou à défaut le CV du profil Jokko du candidat.
 router.get('/ats/applications/:id/cv', recruiterOnly, (req, res) => {
-  const application = companyApplication(req.app.locals.db, req.user, Number(req.params.id));
-  if (!application || !application.cv_path) return notFound(res, 'CV introuvable');
-  const file = path.join(req.app.locals.config.uploadDir, path.basename(application.cv_path));
-  res.download(file, application.cv_original_name || path.basename(file));
+  const db = req.app.locals.db;
+  const application = companyApplication(db, req.user, Number(req.params.id));
+  if (!application || !inPipeline(application)) return notFound(res, 'CV introuvable');
+  let file = application.cv_path;
+  let name = application.cv_original_name;
+  if (!file && application.candidate_id) {
+    const u = db.prepare('SELECT cv_path, cv_original_name FROM users WHERE id = ?').get(application.candidate_id);
+    file = u && u.cv_path;
+    name = u && u.cv_original_name;
+  }
+  if (!file) return notFound(res, 'CV introuvable');
+  res.download(path.join(req.app.locals.config.uploadDir, path.basename(file)), name || path.basename(file));
 });
 
 module.exports = router;

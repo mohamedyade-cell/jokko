@@ -12,7 +12,7 @@
         <td><a href="/jobs/<%= a.job_id %>"><%= a.title %></a><% if (a.job_status !== 'open') { %> <span class="tag tag-red">Clôturée</span><% } %></td>
         <td><%= a.company_name %></td>
         <td class="muted"><%= h.timeAgo(a.created_at) %></td>
-        <td><span class="stage stage-<%= a.stage %>"><%= h.stageLabel(a.stage) %></span></td>
+        <td><span class="stage stage-<%= a.stage %>"><%= h.candidateStageLabel(a.stage) %></span></td>
       </tr>
     <% }) %>
     </tbody>

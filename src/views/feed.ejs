@@ -7,6 +7,21 @@
       <p class="muted"><%= currentUser.headline || 'Ajoutez un titre à votre profil' %></p>
       <a class="btn btn-outline btn-small" href="/profile/edit">Modifier mon profil</a>
     </div>
+    <% if (currentUser.role === 'candidate') { %>
+      <div class="card center">
+        <%- include('partials/score', { skills: score.skills, referral: score.referral }) %>
+        <div class="checklist small">
+          <a href="/profile/video" class="<%= currentUser.video_path ? 'done' : '' %>"><%= currentUser.video_path ? '✓' : '○' %> Pitch vidéo</a>
+          <a href="/skills" class="<%= score.skills ? 'done' : '' %>"><%= score.skills ? '✓' : '○' %> Premier badge</a>
+          <a href="/profile/edit" class="<%= currentUser.cv_path ? 'done' : '' %>"><%= currentUser.cv_path ? '✓' : '○' %> CV complet</a>
+        </div>
+      </div>
+    <% } else { %>
+      <div class="card">
+        <a class="btn full" href="/ats/talents">Repérer des talents</a>
+        <a class="btn btn-outline full mt" href="/ats/urgent">⚡ Besoin urgent</a>
+      </div>
+    <% } %>
   </aside>
 
   <section>

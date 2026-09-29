@@ -4,6 +4,8 @@
   <% if (error) { %><div class="flash flash-error"><%= error %></div><% } %>
   <form method="post" action="/register" class="form">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="ref" value="<%= values.ref || '' %>">
+    <% if (values.ref) { %><div class="flash flash-success">Vous avez été invité(e) sur Jokko par un membre. Bienvenue !</div><% } %>
     <div class="role-picker">
       <label class="role-option"><input type="radio" name="role" value="candidate" <%= values.role !== 'recruiter' ? 'checked' : '' %>> <span>Je cherche un emploi</span></label>
       <label class="role-option"><input type="radio" name="role" value="recruiter" <%= values.role === 'recruiter' ? 'checked' : '' %>> <span>Je recrute</span></label>

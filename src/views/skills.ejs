@@ -1,0 +1,59 @@
+<%- include('partials/header') %>
+<div class="layout-2">
+  <div>
+    <h1>Prouvez vos compétences</h1>
+    <p class="muted">Chaque quiz réussi (<%= passPercent %> % de bonnes réponses) débloque un badge et fait monter votre Jokko Score. Questions tirées au hasard, temps limité par question. En cas d'échec, vous pourrez retenter après <%= cooldownDays %> jours. Un badge reste valable <%= Math.round(validityDays / 30) %> mois.</p>
+
+    <% var domains = {}; catalog.forEach(function (q) { (domains[q.domain] = domains[q.domain] || []).push(q); }); %>
+    <% Object.keys(domains).forEach(function (domain) { %>
+      <h2 class="domain-title"><%= domain %></h2>
+      <% domains[domain].forEach(function (q) { %>
+        <div class="card quiz-card">
+          <div class="row wrap">
+            <div class="grow"><h3><%= q.title %></h3><p class="muted small"><%= q.description %></p></div>
+          </div>
+          <div class="levels">
+            <% q.levels.forEach(function (l) { %>
+              <div class="level level-<%= l.key %>">
+                <div class="level-head"><strong><%= l.label %></strong><span class="muted small"><%= l.questionCount %> questions · ~<%= l.minutes %> min · <%= l.seconds %> s / question</span></div>
+                <% if (l.badge) { %>
+                  <div class="small ok">✓ Badge obtenu · valable jusqu'au <%= h.formatDate(l.badge.expires_at) %></div>
+                <% } %>
+                <% if (l.inProgressId) { %>
+                  <a class="btn btn-small" href="/quiz/<%= l.inProgressId %>">Reprendre</a>
+                <% } else if (l.cooldownUntil) { %>
+                  <div class="small muted">Nouvel essai possible le <%= h.formatDate(l.cooldownUntil) %></div>
+                <% } else if (!l.badge || l.renewable) { %>
+                  <form method="post" action="/skills/<%= q.slug %>/<%= l.key %>/start" onsubmit="return confirm('Le chronomètre démarre dès l’affichage de la première question. Quitter le quiz en cours de route compte comme un échec. Commencer ?')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button class="btn btn-small <%= l.badge ? 'btn-outline' : '' %>"><%= l.badge ? 'Renouveler' : 'Commencer' %></button>
+                  </form>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      <% }) %>
+    <% }) %>
+    <div class="card muted small"><strong>Bientôt :</strong> <%= upcoming.join(' · ') %>. Le catalogue s'enrichit avec Jokko Campus et nos entreprises partenaires.</div>
+  </div>
+
+  <aside>
+    <div class="card center">
+      <%- include('partials/score', { skills: score.skills, referral: score.referral }) %>
+      <p class="small muted">Compétences : <strong><%= score.skills %> / <%= cap %></strong> (quiz, certifications, Jokko Campus).<br>
+      Parrainage : <strong><%= score.referral %> pts</strong> (<%= score.referrals %> filleul<%= score.referrals > 1 ? 's' : '' %> × <%= referralPoints %>), compté à part : il ne remplace jamais les compétences.</p>
+    </div>
+    <div class="card">
+      <h3>Mes badges</h3>
+      <%- include('partials/badges', { badges, emptyText: 'Réussissez un quiz ou faites vérifier une certification pour obtenir votre premier badge.' }) %>
+      <a class="small" href="/profile/credentials">+ Ajouter une certification ou mon école</a>
+    </div>
+    <div class="card small">
+      <h3>Points par badge</h3>
+      <p>Quiz Débutant 10 · Intermédiaire 20 · Avancé 30<br>Certification vérifiée 20 · Jokko Campus 15</p>
+      <p class="muted">Pour chaque compétence, seul votre meilleur niveau compte.</p>
+    </div>
+  </aside>
+</div>
+<%- include('partials/footer') %>

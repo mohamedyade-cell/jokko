@@ -13,6 +13,11 @@ function createApp(options = {}) {
     sessionSecret: options.sessionSecret || process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
     baseUrl: options.baseUrl || process.env.BASE_URL || 'http://localhost:3000',
     integrationToken: options.integrationToken ?? process.env.INTEGRATION_TOKEN ?? '',
+    // Comptes de l'équipe Jokko (vérification des certifications, écoles partenaires, offres).
+    adminEmails: (options.adminEmails ?? process.env.ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
   };
 
   const db = options.db || openDb(config.dbPath);
@@ -42,6 +47,7 @@ function createApp(options = {}) {
       ? db.prepare('SELECT u.*, c.name AS company_name FROM users u LEFT JOIN companies c ON c.id = u.company_id WHERE u.id = ?').get(req.session.userId)
       : null;
     if (req.session.userId && !req.user) delete req.session.userId;
+    if (req.user && config.adminEmails.includes(req.user.email)) req.user.is_admin = 1;
     next();
   });
 
@@ -66,10 +72,15 @@ function createApp(options = {}) {
 
   app.use(require('./routes/auth'));
   app.use(require('./routes/feed'));
+  // Avant profile : /profile/video et /profile/credentials ne doivent pas être pris pour /profile/:id.
+  app.use(require('./routes/video'));
+  app.use(require('./routes/skills'));
   app.use(require('./routes/profile'));
   app.use(require('./routes/network'));
   app.use(require('./routes/jobs'));
   app.use(require('./routes/ats'));
+  app.use(require('./routes/talents'));
+  app.use(require('./routes/admin'));
   app.use(require('./routes/feeds'));
   app.use(require('./routes/integrations'));
 

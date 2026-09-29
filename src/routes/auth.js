@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { transaction } = require('../db');
+const { transaction, referralCode } = require('../db');
 
 const router = express.Router();
 
@@ -10,7 +10,8 @@ function safeNext(next) {
 
 router.get('/register', (req, res) => {
   if (req.user) return res.redirect('/');
-  res.render('register', { title: 'Inscription', values: { role: req.query.role === 'recruiter' ? 'recruiter' : 'candidate' }, error: null });
+  const ref = String(req.query.ref || '').toUpperCase().slice(0, 20);
+  res.render('register', { title: 'Inscription', values: { role: req.query.role === 'recruiter' ? 'recruiter' : 'candidate', ref }, error: null });
 });
 
 router.post('/register', (req, res) => {
@@ -21,6 +22,7 @@ router.post('/register', (req, res) => {
     role: req.body.role === 'recruiter' ? 'recruiter' : 'candidate',
     headline: (req.body.headline || '').trim(),
     company_name: (req.body.company_name || '').trim(),
+    ref: String(req.body.ref || '').trim().toUpperCase().slice(0, 20),
   };
   const password = req.body.password || '';
 
@@ -34,16 +36,16 @@ router.post('/register', (req, res) => {
   if (error) return res.status(400).render('register', { title: 'Inscription', values, error });
 
   const hash = bcrypt.hashSync(password, 10);
+  const referrer = values.ref ? db.prepare('SELECT id FROM users WHERE referral_code = ?').get(values.ref) : null;
   const userId = transaction(db, () => {
-    let companyId = null;
-    if (values.role === 'recruiter') {
-      const existing = db.prepare('SELECT id FROM companies WHERE lower(name) = lower(?)').get(values.company_name);
-      companyId = existing ? existing.id : Number(db.prepare('INSERT INTO companies (name) VALUES (?)').run(values.company_name).lastInsertRowid);
-    }
+    // Chaque recruteur a son propre espace entreprise : on ne rejoint jamais une entreprise existante
+    // par son nom, sinon n'importe qui pourrait accéder au pipeline d'une autre société.
+    const companyId =
+      values.role === 'recruiter' ? Number(db.prepare('INSERT INTO companies (name) VALUES (?)').run(values.company_name).lastInsertRowid) : null;
     return Number(
       db
-        .prepare('INSERT INTO users (email, password_hash, role, name, headline, company_id) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(values.email, hash, values.role, values.name, values.headline, companyId).lastInsertRowid,
+        .prepare('INSERT INTO users (email, password_hash, role, name, headline, company_id, referral_code, referred_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(values.email, hash, values.role, values.name, values.headline, companyId, referralCode(), referrer ? referrer.id : null).lastInsertRowid,
     );
   });
 
@@ -51,7 +53,7 @@ router.post('/register', (req, res) => {
     if (err) throw err;
     req.session.userId = userId;
     req.session.flash = { type: 'success', message: `Bienvenue sur Jokko, ${values.name} !` };
-    res.redirect(values.role === 'recruiter' ? '/ats' : '/profile/edit');
+    res.redirect(values.role === 'recruiter' ? '/ats' : '/profile/video');
   });
 });
 

@@ -1,0 +1,82 @@
+<%- include('partials/header') %>
+<div class="layout-2">
+  <div class="card">
+    <h1>Mon pitch vidéo</h1>
+    <p class="muted">90 secondes pour vous présenter : c'est la première chose que voient les recruteurs, avant même votre CV.</p>
+
+    <div id="recorder" class="recorder" data-max="<%= maxSeconds %>" data-csrf="<%= csrfToken %>">
+      <div class="recorder-stage">
+        <video id="live" playsinline muted autoplay></video>
+        <video id="preview" playsinline controls hidden></video>
+        <div id="placeholder" class="recorder-placeholder">
+          <span>🎥</span>
+          <p>Autorisez l'accès à la caméra et au micro pour commencer.</p>
+        </div>
+        <div id="prompter" class="prompter" hidden></div>
+        <div id="timer" class="rec-timer" hidden>0:00 / 1:30</div>
+      </div>
+      <div class="rec-progress" aria-hidden="true">
+        <div class="seg" style="flex: 15">Qui je suis</div>
+        <div class="seg" style="flex: 45">Ce que je sais faire</div>
+        <div class="seg" style="flex: 30">Ce que je cherche</div>
+        <div id="progress-bar" class="rec-progress-bar"></div>
+      </div>
+
+      <div class="row wrap rec-controls">
+        <label class="inline-label">Langue du pitch
+          <select id="language">
+            <% Object.keys(h.LANGUAGES).forEach(function (k) { %><option value="<%= k %>" <%= (currentUser.video_language || 'fr') === k ? 'selected' : '' %>><%= h.LANGUAGES[k] %></option><% }) %>
+          </select>
+        </label>
+        <span class="grow"></span>
+        <button type="button" id="btn-camera" class="btn">Activer la caméra</button>
+        <button type="button" id="btn-record" class="btn btn-rec" hidden>● Enregistrer</button>
+        <button type="button" id="btn-stop" class="btn" hidden>■ Arrêter</button>
+        <button type="button" id="btn-retake" class="btn btn-outline" hidden>↺ Refaire</button>
+        <button type="button" id="btn-publish" class="btn" hidden>Publier mon pitch</button>
+      </div>
+      <p id="rec-status" class="small muted" role="status"></p>
+    </div>
+
+    <details class="fallback">
+      <summary>La caméra ne fonctionne pas ? Envoyez une vidéo filmée avec votre téléphone</summary>
+      <form id="fallback-form" method="post" action="/profile/video" enctype="multipart/form-data" class="form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="duration" id="fallback-duration">
+        <label>Vidéo (<%= maxSeconds %> secondes maximum)
+          <input type="file" name="video" accept="video/*" capture="user" required>
+        </label>
+        <label>Langue
+          <select name="language">
+            <% Object.keys(h.LANGUAGES).forEach(function (k) { %><option value="<%= k %>"><%= h.LANGUAGES[k] %></option><% }) %>
+          </select>
+        </label>
+        <button class="btn btn-outline">Envoyer la vidéo</button>
+      </form>
+    </details>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h3>La trame en 90 secondes</h3>
+      <ol class="script">
+        <li><strong>0 – 15 s · Qui je suis</strong><br>Prénom, ville, situation actuelle.</li>
+        <li><strong>15 – 60 s · Ce que je sais faire</strong><br>Compétences clés, expériences marquantes, réalisations concrètes.</li>
+        <li><strong>60 – 90 s · Ce que je cherche</strong><br>Type de poste, de contrat, disponibilité.</li>
+      </ol>
+      <p class="small muted">Vous pouvez revoir et refaire votre vidéo autant de fois que vous le souhaitez avant de la publier. Elle est compressée automatiquement pour se charger même avec une connexion mobile moyenne.</p>
+    </div>
+    <div class="card">
+      <h3>Pitch actuel</h3>
+      <%- include('partials/pitch', { user: currentUser }) %>
+      <% if (currentUser.video_path) { %>
+        <form method="post" action="/profile/video/delete" class="right" onsubmit="return confirm('Supprimer votre pitch vidéo ?')">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="link small">Supprimer</button>
+        </form>
+      <% } %>
+    </div>
+  </aside>
+</div>
+<script src="/pitch.js"></script>
+<%- include('partials/footer') %>

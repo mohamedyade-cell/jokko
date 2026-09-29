@@ -1,0 +1,43 @@
+<%- include('partials/header') %>
+<div class="card quiz-run narrow-wide">
+  <div class="row">
+    <div class="grow"><strong><%= attempt.quiz.title %></strong> · <%= attempt.levelInfo.label %></div>
+    <div id="countdown" class="countdown" data-left="<%= question.secondsLeft %>" data-total="<%= question.seconds %>"><%= question.secondsLeft %> s</div>
+  </div>
+  <div class="quiz-progress"><div style="width: <%= Math.round((question.index / question.total) * 100) %>%"></div></div>
+  <p class="muted small">Question <%= question.number %> sur <%= question.total %></p>
+  <h2 class="question"><%= question.text %></h2>
+  <form id="quiz-form" method="post" action="/quiz/<%= attempt.id %>/answer" class="choices">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="index" value="<%= question.index %>">
+    <% question.choices.forEach(function (c, i) { %>
+      <label class="choice"><input type="radio" name="choice" value="<%= i %>" required> <span><%= c %></span></label>
+    <% }) %>
+    <button class="btn">Valider</button>
+  </form>
+</div>
+<script>
+  // Le temps est contrôlé côté serveur ; ce compte à rebours envoie la réponse (ou l'absence de réponse) à zéro.
+  (function () {
+    var el = document.getElementById('countdown');
+    var form = document.getElementById('quiz-form');
+    var left = Number(el.dataset.left);
+    var end = Date.now() + left * 1000;
+    var sent = false;
+    form.addEventListener('submit', function () { sent = true; });
+    function tick() {
+      var s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      el.textContent = s + ' s';
+      el.classList.toggle('urgent', s <= 10);
+      if (s === 0 && !sent) {
+        sent = true;
+        form.querySelectorAll('input[type=radio]').forEach(function (r) { r.required = false; });
+        form.submit();
+        return;
+      }
+      if (!sent) setTimeout(tick, 250);
+    }
+    tick();
+  })();
+</script>
+<%- include('partials/footer') %>

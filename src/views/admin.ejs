@@ -1,0 +1,64 @@
+<%- include('partials/header') %>
+<h1>Administration Jokko</h1>
+
+<div class="card">
+  <h2>Vérifications en attente (<%= pending.length %>)</h2>
+  <% if (!pending.length) { %><p class="muted">Rien à vérifier.</p><% } %>
+  <% pending.forEach(function (c) { %>
+    <div class="review row wrap">
+      <div class="grow">
+        <strong><%= c.type === 'campus' ? '🎓 Jokko Campus · ' + c.school_name : '★ ' + c.title %></strong>
+        <div class="small"><%= c.type === 'campus' ? c.title : c.issuer %><%= c.obtained_on ? ' · ' + c.obtained_on : '' %><%= c.reference ? ' · réf. ' + c.reference : '' %></div>
+        <div class="small muted"><a href="/profile/<%= c.user_id %>"><%= c.user_name %></a> (<%= c.user_email %>) · <%= h.timeAgo(c.created_at) %>
+          <% if (c.file_path) { %> · <a href="/admin/credentials/<%= c.id %>/proof">Justificatif</a><% } else { %> · sans justificatif<% } %></div>
+      </div>
+      <form method="post" action="/admin/credentials/<%= c.id %>/reject" class="inline row">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input name="note" placeholder="Motif du refus" class="note-input">
+        <button class="btn btn-outline btn-small">Refuser</button>
+      </form>
+      <form method="post" action="/admin/credentials/<%= c.id %>/verify" class="inline">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btn-small">Vérifier → badge</button>
+      </form>
+    </div>
+  <% }) %>
+</div>
+
+<div class="layout-2">
+  <div class="card">
+    <h2>Entreprises et offres</h2>
+    <table class="table">
+      <thead><tr><th>Entreprise</th><th>Offres ouvertes</th><th>Offre</th></tr></thead>
+      <tbody>
+      <% companies.forEach(function (co) { %>
+        <tr>
+          <td><%= co.name %></td>
+          <td><%= co.open_jobs %></td>
+          <td>
+            <form method="post" action="/admin/companies/<%= co.id %>/plan" class="row">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <select name="plan" onchange="this.form.submit()">
+                <% Object.keys(PLANS).forEach(function (k) { %><option value="<%= k %>" <%= co.plan === k ? 'selected' : '' %>><%= PLANS[k].label %></option><% }) %>
+              </select>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <aside class="card">
+    <h2>Écoles partenaires (Jokko Campus)</h2>
+    <% schools.forEach(function (s) { %>
+      <div class="mini-job"><strong><%= s.name %></strong><div class="small muted"><%= s.city %> · <%= s.members %> badge<%= s.members > 1 ? 's' : '' %></div></div>
+    <% }) %>
+    <form method="post" action="/admin/schools" class="form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input name="name" placeholder="Nom de l'école" required>
+      <input name="city" placeholder="Ville">
+      <button class="btn btn-outline btn-small">Ajouter</button>
+    </form>
+  </aside>
+</div>
+<%- include('partials/footer') %>

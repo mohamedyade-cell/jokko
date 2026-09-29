@@ -3,8 +3,9 @@
   <div class="grow">
     <a href="/ats" class="small">← Tableau de bord</a>
     <h1><%= job.title %> <span class="tag <%= job.status === 'open' ? 'tag-green' : 'tag-red' %>"><%= job.status === 'open' ? 'Ouverte' : 'Clôturée' %></span></h1>
-    <p class="muted"><%= job.location %> · <%= job.contract_type %> · <%= total %> candidat<%= total > 1 ? 's' : '' %></p>
+    <p class="muted"><%= job.location %> · <%= job.contract_type %> · <%= total %> candidat<%= total > 1 ? 's' : '' %> dans le pipeline</p>
   </div>
+  <a class="btn btn-outline" href="/ats/talents">Repérer dans la CVthèque</a>
   <a class="btn btn-outline" href="/jobs/<%= job.id %>">Voir l'annonce</a>
   <a class="btn btn-outline" href="/ats/jobs/<%= job.id %>/edit">Modifier</a>
   <form method="post" action="/ats/jobs/<%= job.id %>/status" class="inline">
@@ -13,10 +14,43 @@
   </form>
 </div>
 
+<% if (inbox.length) { %>
+<section class="card inbox">
+  <h2>Candidatures reçues (<%= inbox.length %>)</h2>
+  <p class="muted small">Regardez le pitch, les badges et le Jokko Score. Retenez une candidature pour débloquer le CV complet et la faire entrer dans le pipeline (gratuit : le candidat a postulé).</p>
+  <div class="inbox-list">
+    <% inbox.forEach(function (a) { %>
+      <div class="inbox-item">
+        <% if (a.candidate_id) { %><%- include('../partials/pitch', { user: { id: a.candidate_id, video_path: a.video_path }, preload: 'none' }) %><% } %>
+        <div class="grow">
+          <div class="row">
+            <div class="grow">
+              <a href="/ats/applications/<%= a.id %>"><strong><%= h.shortName(a.candidate_name) %></strong></a>
+              <div class="muted small"><%= a.headline || '' %><%= a.location ? ' · ' + a.location : '' %></div>
+              <div class="small"><span class="source source-<%= a.source %>"><%= h.sourceLabel(a.source) %></span> · <%= h.timeAgo(a.created_at) %></div>
+            </div>
+            <% if (a.candidate_id) { %><%- include('../partials/score', { skills: a.skill_score, referral: a.referral_score, compact: true }) %><% } %>
+          </div>
+          <%- include('../partials/badges', { badges: badges[a.candidate_id] || [] }) %>
+          <div class="row">
+            <form method="post" action="/ats/applications/<%= a.id %>/retain" class="inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small">Retenir · débloquer le CV</button>
+            </form>
+            <form method="post" action="/ats/applications/<%= a.id %>/dismiss" class="inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-outline btn-small">Écarter</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</section>
+<% } %>
+
 <div class="source-filter">
   Source :
   <a href="?" class="<%= !source ? 'active' : '' %>">Toutes</a>
-  <% ['jokko', 'linkedin', 'indeed'].forEach(function (s) { %>
+  <% ['jokko', 'sourcing', 'linkedin', 'indeed'].forEach(function (s) { %>
     <a href="?source=<%= s %>" class="<%= source === s ? 'active' : '' %>"><%= h.sourceLabel(s) %></a>
   <% }) %>
 </div>
@@ -28,17 +62,20 @@
       <div class="kanban-list">
         <% col.items.forEach(function (a) { %>
           <article class="kanban-card" draggable="true" data-id="<%= a.id %>">
-            <a href="/ats/applications/<%= a.id %>"><strong><%= a.candidate_name %></strong></a>
-            <div class="muted small ellipsis" title="<%= a.candidate_email %>"><%= a.candidate_email %></div>
+            <div class="row">
+              <a href="/ats/applications/<%= a.id %>" class="grow"><strong><%= a.candidate_name %></strong></a>
+              <% if (a.candidate_id) { %><span class="score-pill" title="Jokko Score compétences"><%= a.skill_score %></span><% } %>
+            </div>
+            <div class="muted small ellipsis" title="<%= a.headline || a.candidate_email %>"><%= a.headline || a.candidate_email %></div>
             <div class="kanban-meta">
               <span class="source source-<%= a.source %>"><%= h.sourceLabel(a.source) %></span>
               <span class="stars"><%= '★'.repeat(a.rating) %><span class="muted"><%= '★'.repeat(5 - a.rating) %></span></span>
             </div>
-            <div class="muted small"><%= h.timeAgo(a.created_at) %><%= a.cv_path ? ' · CV' : '' %><%= a.notes_count ? ' · ' + a.notes_count + ' note' + (a.notes_count > 1 ? 's' : '') : '' %></div>
-            <form method="post" action="/ats/applications/<%= a.id %>/stage" class="no-js-move">
+            <div class="muted small"><%= a.video_path ? '🎥 ' : '' %><%= (badges[a.candidate_id] || []).length ? (badges[a.candidate_id] || []).length + ' badge' + ((badges[a.candidate_id] || []).length > 1 ? 's' : '') + ' · ' : '' %><%= a.notes_count ? a.notes_count + ' note' + (a.notes_count > 1 ? 's' : '') + ' · ' : '' %><%= h.timeAgo(a.created_at) %></div>
+            <form method="post" action="/ats/applications/<%= a.id %>/stage">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="back" value="pipeline">
-              <select name="stage" onchange="this.form.submit()">
+              <select name="stage" onchange="this.form.submit()" aria-label="Étape">
                 <% STAGES.forEach(function (s) { %><option value="<%= s.key %>" <%= s.key === a.stage ? 'selected' : '' %>><%= s.label %></option><% }) %>
               </select>
             </form>

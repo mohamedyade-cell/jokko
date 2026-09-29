@@ -1,7 +1,8 @@
-const { transaction } = require('./db');
+const { transaction, INBOX_STAGE } = require('./db');
 
-// Enregistre une candidature (interne ou reçue de LinkedIn / Indeed).
+// Enregistre une candidature (interne, reçue de LinkedIn / Indeed, ou issue de la CVthèque).
 // Une même adresse e-mail ne peut postuler qu'une fois par offre.
+// Par défaut elle arrive dans les « candidatures reçues » : elle n'entre dans le pipeline qu'une fois débloquée.
 function recordApplication(db, a) {
   const email = String(a.email).trim().toLowerCase();
   const existing = db.prepare('SELECT id FROM applications WHERE job_id = ? AND candidate_email = ?').get(a.jobId, email);
@@ -10,17 +11,18 @@ function recordApplication(db, a) {
   // Rattache la candidature externe à un compte Jokko existant si l'e-mail correspond.
   const candidateId = a.candidateId ?? db.prepare("SELECT id FROM users WHERE email = ? AND role = 'candidate'").get(email)?.id ?? null;
 
+  const stage = a.stage || INBOX_STAGE;
   const id = transaction(db, () => {
     const appId = Number(
       db
         .prepare(
-          `INSERT INTO applications (job_id, candidate_id, candidate_name, candidate_email, candidate_phone, cover_letter, cv_path, cv_original_name, external_ref, source)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO applications (job_id, candidate_id, candidate_name, candidate_email, candidate_phone, cover_letter, cv_path, cv_original_name, external_ref, source, stage)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(a.jobId, candidateId, a.name, email, a.phone || '', a.coverLetter || '', a.cvPath || null, a.cvOriginalName || null, a.externalRef || null, a.source)
+        .run(a.jobId, candidateId, a.name, email, a.phone || '', a.coverLetter || '', a.cvPath || null, a.cvOriginalName || null, a.externalRef || null, a.source, stage)
         .lastInsertRowid,
     );
-    db.prepare("INSERT INTO application_events (application_id, actor_id, from_stage, to_stage) VALUES (?, NULL, NULL, 'nouveau')").run(appId);
+    db.prepare('INSERT INTO application_events (application_id, actor_id, from_stage, to_stage) VALUES (?, ?, NULL, ?)').run(appId, a.actorId || null, stage);
     return appId;
   });
   return { created: true, id };

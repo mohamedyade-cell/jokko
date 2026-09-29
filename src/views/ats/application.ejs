@@ -1,32 +1,53 @@
 <%- include('../partials/header') %>
 <a href="/ats/jobs/<%= application.job_id %>" class="small">← Pipeline « <%= application.job_title %> »</a>
+<% var name = unlocked ? application.candidate_name : h.shortName(application.candidate_name); %>
 <div class="layout-2">
   <div>
-    <div class="card profile-head">
-      <%- include('../partials/avatar', { name: application.candidate_name, size: 'xl' }) %>
+    <div class="card profile-card <%= candidate ? 'has-pitch' : '' %>">
+      <% if (candidate) { %>
+        <div class="profile-pitch"><%- include('../partials/pitch', { user: candidate }) %></div>
+      <% } else { %>
+        <%- include('../partials/avatar', { name: application.candidate_name, size: 'xl' }) %>
+      <% } %>
       <div class="grow">
-        <h1><%= application.candidate_name %></h1>
-        <% if (candidate && candidate.headline) { %><p class="lead"><%= candidate.headline %></p><% } %>
-        <p class="muted">
-          <a href="mailto:<%= application.candidate_email %>"><%= application.candidate_email %></a>
-          <% if (application.candidate_phone) { %> · <%= application.candidate_phone %><% } %>
-        </p>
-        <p class="small">Candidature via <span class="source source-<%= application.source %>"><%= h.sourceLabel(application.source) %></span> · <%= h.timeAgo(application.created_at) %>
-          <% if (candidate) { %> · <a href="/profile/<%= candidate.id %>">Profil Jokko</a><% } %></p>
+        <div class="row wrap">
+          <div class="grow">
+            <h1><%= name %></h1>
+            <% if (candidate && candidate.headline) { %><p class="lead"><%= candidate.headline %></p><% } %>
+          </div>
+          <% if (candidate) { %><%- include('../partials/score', { skills: candidate.skill_score, referral: candidate.referral_score }) %><% } %>
+        </div>
+        <% if (unlocked) { %>
+          <p class="muted"><a href="mailto:<%= application.candidate_email %>"><%= application.candidate_email %></a><% if (application.candidate_phone) { %> · <%= application.candidate_phone %><% } %></p>
+        <% } %>
+        <p class="small">Via <span class="source source-<%= application.source %>"><%= h.sourceLabel(application.source) %></span> · <%= h.timeAgo(application.created_at) %>
+          <% if (candidate) { %> · <a href="/profile/<%= candidate.id %>">Profil Jokko</a><% } %>
+          <% if (candidate && candidate.available_now) { %> · <span class="tag tag-green">Disponible immédiatement</span><% } %></p>
+        <% if (candidate) { %><%- include('../partials/badges', { badges, emptyText: 'Aucun badge.' }) %><% } %>
       </div>
     </div>
 
-    <% if (application.cv_path) { %>
-      <div class="card row"><span class="grow">📄 <%= application.cv_original_name %></span><a class="btn btn-outline btn-small" href="/ats/applications/<%= application.id %>/cv">Télécharger le CV</a></div>
+    <% if (!unlocked) { %>
+      <div class="card unlock-box">
+        <div class="grow">
+          <h2>🔒 CV complet verrouillé</h2>
+          <p class="muted"><%= application.stage === 'ecartee' ? 'Candidature écartée.' : 'Retenez cette candidature pour débloquer le CV, les coordonnées et la faire entrer dans votre pipeline.' %></p>
+        </div>
+        <form method="post" action="/ats/applications/<%= application.id %>/retain" class="inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn">Retenir · débloquer le CV</button>
+        </form>
+      </div>
+    <% } else if (application.cv_path || (candidate && candidate.cv_path)) { %>
+      <div class="card row"><span class="grow">📄 <%= application.cv_original_name || candidate.cv_original_name %></span><a class="btn btn-outline btn-small" href="/ats/applications/<%= application.id %>/cv">Télécharger le CV</a></div>
     <% } %>
 
     <% if (application.cover_letter) { %>
       <div class="card"><h2>Lettre de motivation</h2><p class="pre"><%= application.cover_letter %></p></div>
     <% } %>
 
-    <% if (candidate) { %>
+    <% if (candidate && unlocked) { %>
       <% if (h.splitSkills(candidate.skills).length) { %>
-        <div class="card"><h2>Compétences</h2><div class="tags"><% h.splitSkills(candidate.skills).forEach(function (s) { %><span class="tag"><%= s %></span><% }) %></div></div>
+        <div class="card"><h2>Compétences déclarées</h2><div class="tags"><% h.splitSkills(candidate.skills).forEach(function (s) { %><span class="tag"><%= s %></span><% }) %></div></div>
       <% } %>
       <% if (experiences.length) { %>
         <div class="card"><h2>Expérience</h2>
@@ -37,6 +58,7 @@
       <% } %>
     <% } %>
 
+    <% if (unlocked) { %>
     <div class="card">
       <h2>Notes de l'équipe</h2>
       <form method="post" action="/ats/applications/<%= application.id %>/notes" class="form">
@@ -48,18 +70,21 @@
         <div class="note"><div class="small"><strong><%= n.author_name %></strong> <span class="muted">· <%= h.timeAgo(n.created_at) %></span></div><p class="pre"><%= n.content %></p></div>
       <% }) %>
     </div>
+    <% } %>
   </div>
 
   <aside>
+    <% if (unlocked) { %>
     <div class="card">
       <h3>Étape</h3>
-      <form method="post" action="/ats/applications/<%= application.id %>/stage" class="form">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <select name="stage">
-          <% STAGES.forEach(function (s) { %><option value="<%= s.key %>" <%= s.key === application.stage ? 'selected' : '' %>><%= s.label %></option><% }) %>
-        </select>
-        <button class="btn btn-small">Mettre à jour</button>
-      </form>
+      <div class="stage-steps">
+        <% STAGES.forEach(function (s) { %>
+          <form method="post" action="/ats/applications/<%= application.id %>/stage" class="inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button name="stage" value="<%= s.key %>" class="step <%= s.key === application.stage ? 'current stage-' + s.key : '' %>"><%= s.label %></button>
+          </form>
+        <% }) %>
+      </div>
     </div>
     <div class="card">
       <h3>Évaluation</h3>
@@ -70,14 +95,17 @@
         <% } %>
       </form>
     </div>
+    <% } %>
     <div class="card">
       <h3>Historique</h3>
       <% events.forEach(function (e) { %>
         <div class="small event">
           <% if (e.from_stage) { %>
             <%= e.actor_name || 'Système' %> : <%= h.stageLabel(e.from_stage) %> → <strong><%= h.stageLabel(e.to_stage) %></strong>
-          <% } else { %>
+          <% } else if (e.to_stage === 'recue') { %>
             Candidature reçue via <%= h.sourceLabel(application.source) %>
+          <% } else { %>
+            <%= e.actor_name || 'Système' %> : CV débloqué depuis la CVthèque → <strong><%= h.stageLabel(e.to_stage) %></strong>
           <% } %>
           <div class="muted"><%= h.timeAgo(e.created_at) %></div>
         </div>

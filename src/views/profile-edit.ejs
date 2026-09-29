@@ -6,10 +6,33 @@
     <label>Nom complet <input name="name" value="<%= currentUser.name %>" required maxlength="120"></label>
     <label>Titre professionnel <input name="headline" value="<%= currentUser.headline %>" maxlength="200"></label>
     <label>Ville <input name="location" value="<%= currentUser.location %>" maxlength="120"></label>
+    <label>Téléphone <small class="muted">(visible seulement après déblocage)</small> <input name="phone" type="tel" value="<%= currentUser.phone %>" maxlength="40"></label>
     <label>Compétences <small class="muted">(séparées par des virgules)</small> <input name="skills" value="<%= currentUser.skills %>"></label>
+    <% if (currentUser.role === 'candidate') { %>
+      <label class="checkbox"><input type="checkbox" name="available_now" value="1" <%= currentUser.available_now ? 'checked' : '' %>> Disponible immédiatement (missions journalières, intérim) – vous apparaissez dans les « besoins urgents » des recruteurs</label>
+    <% } %>
     <label>À propos <textarea name="about" rows="5"><%= currentUser.about %></textarea></label>
     <button class="btn">Enregistrer</button>
   </form>
+</div>
+
+<% if (currentUser.role === 'candidate') { %>
+<div class="card">
+  <h2>Mon CV</h2>
+  <p class="muted small">Votre CV complet n'est visible que des recruteurs qui débloquent votre profil.</p>
+  <% if (currentUser.cv_path) { %><p>📄 <a href="/profile/<%= currentUser.id %>/cv"><%= currentUser.cv_original_name %></a></p><% } %>
+  <form method="post" action="/profile/cv" enctype="multipart/form-data" class="row wrap">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="file" name="cv" accept=".pdf,.doc,.docx" required class="grow">
+    <button class="btn btn-outline btn-small"><%= currentUser.cv_path ? 'Remplacer' : 'Ajouter' %> le CV</button>
+  </form>
+</div>
+<% } %>
+
+<div class="card">
+  <h2>Parrainage</h2>
+  <p class="muted small">Chaque personne qui rejoint Jokko avec votre lien vous rapporte des points de parrainage. Ils s'ajoutent à votre Jokko Score, à part de la composante compétences.</p>
+  <div class="row wrap"><input readonly value="<%= referralUrl %>" class="grow" onclick="this.select()"><span class="tag"><%= score.referrals %> filleul<%= score.referrals > 1 ? 's' : '' %> · +<%= score.referral %> pts</span></div>
 </div>
 
 <div class="card">

@@ -1,10 +1,39 @@
 const { STAGES } = require('./db');
 
-const stageLabels = Object.fromEntries(STAGES.map((s) => [s.key, s.label]));
-const sourceLabels = { jokko: 'Jokko', linkedin: 'LinkedIn', indeed: 'Indeed' };
+const stageLabels = { ...Object.fromEntries(STAGES.map((s) => [s.key, s.label])), recue: 'Reçue', ecartee: 'Écartée' };
+const sourceLabels = { jokko: 'Jokko', sourcing: 'CVthèque', linkedin: 'LinkedIn', indeed: 'Indeed' };
+// Vu par le candidat : on ne détaille pas les refus.
+const candidateStageLabels = { ...stageLabels, recue: 'Envoyée', ecartee: 'Non retenue', refuse: 'Non retenue' };
+const levelLabels = { debutant: 'Débutant', intermediaire: 'Intermédiaire', avance: 'Avancé' };
+const LANGUAGES = { fr: 'Français', wo: 'Wolof', en: 'Anglais', pul: 'Pulaar', ser: 'Sérère', other: 'Autre' };
 
 function stageLabel(key) {
   return stageLabels[key] || key;
+}
+
+function candidateStageLabel(key) {
+  return candidateStageLabels[key] || key;
+}
+
+function levelLabel(key) {
+  return levelLabels[key] || key || '';
+}
+
+function languageLabel(key) {
+  return LANGUAGES[key] || '';
+}
+
+// « Moussa D. » : affiché tant que le CV n'est pas débloqué.
+function shortName(name) {
+  const parts = String(name || '').trim().split(/\s+/);
+  if (parts.length < 2) return parts[0] || '';
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`;
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : parseDate(value);
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function sourceLabel(key) {
@@ -52,4 +81,18 @@ function splitSkills(skills) {
     .filter(Boolean);
 }
 
-module.exports = { stageLabel, sourceLabel, timeAgo, formatSalary, initials, splitSkills, parseDate };
+module.exports = {
+  LANGUAGES,
+  stageLabel,
+  candidateStageLabel,
+  sourceLabel,
+  levelLabel,
+  languageLabel,
+  shortName,
+  formatDate,
+  timeAgo,
+  formatSalary,
+  initials,
+  splitSkills,
+  parseDate,
+};

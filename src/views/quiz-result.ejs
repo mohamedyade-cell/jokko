@@ -1,0 +1,18 @@
+<%- include('partials/header') %>
+<% var total = attempt.questions.length; var pct = Math.round((attempt.correct_count / total) * 100); var passed = attempt.status === 'passed'; %>
+<div class="card narrow center">
+  <div class="result-icon"><%= passed ? '🏅' : '💪' %></div>
+  <h1><%= passed ? 'Badge débloqué !' : 'Pas cette fois' %></h1>
+  <p class="lead"><%= attempt.quiz.title %> · <%= attempt.levelInfo.label %></p>
+  <p><strong><%= attempt.correct_count %> / <%= total %></strong> bonnes réponses (<%= pct %> %, seuil <%= passPercent %> %)</p>
+  <% if (passed) { %>
+    <p>Le badge <strong><%= attempt.quiz.title %> <%= attempt.levelInfo.label %></strong> est maintenant affiché sur votre profil et votre Jokko Score a été mis à jour.</p>
+  <% } else { %>
+    <p class="muted">Vous pourrez retenter ce quiz dans <%= cooldownDays %> jours. D'ici là, révisez ou essayez un autre niveau.</p>
+  <% } %>
+  <div class="hero-actions">
+    <a class="btn" href="/skills">Retour aux compétences</a>
+    <a class="btn btn-outline" href="/profile/<%= currentUser.id %>">Voir mon profil</a>
+  </div>
+</div>
+<%- include('partials/footer') %>

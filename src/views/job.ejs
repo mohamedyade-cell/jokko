@@ -31,15 +31,16 @@
       <% } %>
     <% } else if (existing) { %>
       <h3>Candidature envoyée ✓</h3>
-      <p>Statut : <span class="stage stage-<%= existing.stage %>"><%= h.stageLabel(existing.stage) %></span></p>
+      <p>Statut : <span class="stage stage-<%= existing.stage %>"><%= h.candidateStageLabel(existing.stage) %></span></p>
       <a href="/applications">Suivre mes candidatures</a>
     <% } else if (job.status === 'open') { %>
       <h3>Postuler</h3>
       <form method="post" action="/jobs/<%= job.id %>/apply" enctype="multipart/form-data" class="form">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <p class="small muted">Votre profil Jokko (<%= currentUser.name %>, <%= currentUser.email %>) sera transmis au recruteur.</p>
+        <p class="small muted">Le recruteur verra d'abord votre pitch vidéo, vos badges et votre Jokko Score, puis votre CV complet s'il retient votre candidature.</p>
+        <% if (!currentUser.video_path) { %><p class="small">💡 <a href="/profile/video">Enregistrez votre pitch vidéo</a> pour vous démarquer.</p><% } %>
         <label>Téléphone <input name="phone" type="tel"></label>
-        <label>CV <small class="muted">(PDF, DOC, DOCX – 5 Mo max)</small> <input type="file" name="cv" accept=".pdf,.doc,.docx"></label>
+        <label>CV <small class="muted">(PDF, DOC, DOCX – 5 Mo max<%= currentUser.cv_path ? ' ; sinon le CV de votre profil est utilisé' : '' %>)</small> <input type="file" name="cv" accept=".pdf,.doc,.docx"></label>
         <label>Lettre de motivation <textarea name="cover_letter" rows="5"></textarea></label>
         <button class="btn full">Envoyer ma candidature</button>
       </form>
