@@ -1,5 +1,17 @@
 const { PLANS, INBOX_STAGE, DISMISSED_STAGE, transaction } = require('./db');
 const { recordApplication } = require('./applications');
+const { notify } = require('./notify');
+
+// Prévient le candidat que son CV a été débloqué : il peut désormais échanger avec le recruteur.
+function notifyUnlocked(db, applicationId, sourcing) {
+  const a = db
+    .prepare('SELECT a.id, a.candidate_id, j.title, c.name AS company FROM applications a JOIN jobs j ON j.id = a.job_id JOIN companies c ON c.id = j.company_id WHERE a.id = ?')
+    .get(applicationId);
+  if (!a || !a.candidate_id) return;
+  notify(db, a.candidate_id, sourcing
+    ? { type: 'unlock', title: `${a.company} s'intéresse à votre profil`, body: `Votre CV a été débloqué pour le poste « ${a.title} ».`, link: `/messages/${a.id}` }
+    : { type: 'unlock', title: `Candidature retenue par ${a.company}`, body: `Votre candidature au poste « ${a.title} » passe à l'étude.`, link: `/messages/${a.id}` });
+}
 
 function isUnlocked(db, companyId, candidateId) {
   if (!companyId || !candidateId) return false;
@@ -50,7 +62,10 @@ function unlockCandidate(db, recruiter, candidate, jobId) {
     }
     const existing = db.prepare('SELECT id, stage FROM applications WHERE job_id = ? AND candidate_email = ?').get(job.id, candidate.email);
     if (existing) {
-      if (existing.stage === INBOX_STAGE || existing.stage === DISMISSED_STAGE) moveToPipeline(db, existing, recruiter.id);
+      if (existing.stage === INBOX_STAGE || existing.stage === DISMISSED_STAGE) {
+        moveToPipeline(db, existing, recruiter.id);
+        notifyUnlocked(db, existing.id, false);
+      }
       return { applicationId: existing.id, charged: !already };
     }
     const created = recordApplication(db, {
@@ -63,6 +78,7 @@ function unlockCandidate(db, recruiter, candidate, jobId) {
       stage: 'nouveau',
       actorId: recruiter.id,
     });
+    notifyUnlocked(db, created.id, true);
     return { applicationId: created.id, charged: !already };
   });
 }
@@ -79,6 +95,7 @@ function retainApplication(db, recruiter, application) {
       db.prepare('INSERT OR IGNORE INTO unlocks (company_id, candidate_id, unlocked_by, charged) VALUES (?, ?, ?, 0)').run(recruiter.company_id, application.candidate_id, recruiter.id);
     }
     moveToPipeline(db, application, recruiter.id);
+    notifyUnlocked(db, application.id, false);
   });
 }
 

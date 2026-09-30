@@ -1,18 +1,32 @@
 <%- include('partials/header') %>
 <h1>Mes candidatures</h1>
+<% if (interviews.length) { %>
+<div class="card">
+  <h2>Mes prochains entretiens</h2>
+  <% interviews.forEach(function (i) { %>
+    <div class="agenda-item row wrap">
+      <div class="agenda-when"><strong><%= iv.formatWhen(i.starts_at) %></strong><div class="small muted"><%= iv.MODES[i.mode] %></div></div>
+      <div class="grow"><strong><%= i.company_name %></strong><div class="small muted"><%= i.job_title %></div></div>
+      <span class="status status-<%= i.status === 'confirmed' ? 'verified' : 'pending' %>"><%= i.status === 'confirmed' ? 'Confirmé' : 'À confirmer' %></span>
+      <a class="btn btn-small <%= i.status === 'confirmed' ? 'btn-outline' : '' %>" href="/messages/<%= i.application_id %>#entretien-<%= i.id %>"><%= i.status === 'confirmed' ? 'Détails' : 'Répondre' %></a>
+    </div>
+  <% }) %>
+</div>
+<% } %>
 <% if (!applications.length) { %>
   <div class="card muted">Aucune candidature pour l'instant. <a href="/jobs">Parcourir les offres</a></div>
 <% } else { %>
 <div class="card">
   <table class="table">
-    <thead><tr><th>Poste</th><th>Entreprise</th><th>Envoyée</th><th>Statut</th></tr></thead>
+    <thead><tr><th>Poste</th><th>Entreprise</th><th>Date</th><th>Statut</th><th></th></tr></thead>
     <tbody>
     <% applications.forEach(function (a) { %>
       <tr>
         <td><a href="/jobs/<%= a.job_id %>"><%= a.title %></a><% if (a.job_status !== 'open') { %> <span class="tag tag-red">Clôturée</span><% } %></td>
         <td><%= a.company_name %></td>
         <td class="muted"><%= h.timeAgo(a.created_at) %></td>
-        <td><span class="stage stage-<%= a.stage %>"><%= h.candidateStageLabel(a.stage) %></span></td>
+        <td><span class="stage stage-<%= a.stage %>"><%= a.source === 'sourcing' && a.stage === 'nouveau' ? 'Profil repéré' : h.candidateStageLabel(a.stage) %></span></td>
+        <td><% if (STAGE_KEYS.includes(a.stage)) { %><a class="small" href="/messages/<%= a.id %>">💬 Échanger</a><% } %></td>
       </tr>
     <% }) %>
     </tbody>

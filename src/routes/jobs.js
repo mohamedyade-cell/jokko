@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('node:fs');
 const { requireLogin, requireRole, verifyCsrf } = require('../auth');
 const { cvUpload } = require('../upload');
-const { CONTRACT_TYPES } = require('../db');
+const { CONTRACT_TYPES, STAGE_KEYS } = require('../db');
 const { recordApplication } = require('../applications');
 
 const router = express.Router();
@@ -102,12 +102,19 @@ router.post('/jobs/:id/apply', requireRole('candidate'), (req, res, next) => {
 router.get('/applications', requireLogin, (req, res) => {
   const applications = req.app.locals.db
     .prepare(
-      `SELECT a.id, a.stage, a.created_at, a.updated_at, j.id AS job_id, j.title, j.location, j.status AS job_status, c.name AS company_name
+      `SELECT a.id, a.stage, a.source, a.created_at, a.updated_at, j.id AS job_id, j.title, j.location, j.status AS job_status, c.name AS company_name
        FROM applications a JOIN jobs j ON j.id = a.job_id JOIN companies c ON c.id = j.company_id
        WHERE a.candidate_id = ? ORDER BY a.created_at DESC`,
     )
     .all(req.user.id);
-  res.render('my-applications', { title: 'Mes candidatures', applications });
+  const interviews = req.app.locals.db
+    .prepare(
+      `SELECT i.*, j.title AS job_title, c.name AS company_name FROM interviews i
+       JOIN applications a ON a.id = i.application_id JOIN jobs j ON j.id = a.job_id JOIN companies c ON c.id = j.company_id
+       WHERE a.candidate_id = ? AND i.status IN ('proposed', 'confirmed') AND i.starts_at >= datetime('now') ORDER BY i.starts_at`,
+    )
+    .all(req.user.id);
+  res.render('my-applications', { title: 'Mes candidatures', applications, interviews, iv: require('../interviews'), STAGE_KEYS });
 });
 
 module.exports = router;

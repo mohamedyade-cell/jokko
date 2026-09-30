@@ -5,6 +5,8 @@ const session = require('express-session');
 const { openDb, STAGES, CONTRACT_TYPES } = require('./db');
 const { csrfProtection, ensureCsrfToken } = require('./auth');
 const helpers = require('./helpers');
+const { unreadCount } = require('./notify');
+const { unreadMessages } = require('./routes/followup');
 
 function createApp(options = {}) {
   const config = {
@@ -61,6 +63,8 @@ function createApp(options = {}) {
     res.locals.h = helpers;
     delete req.session.flash;
     if (req.user) {
+      res.locals.unreadNotifications = unreadCount(db, req.user.id);
+      res.locals.unreadMessages = unreadMessages(db, req.user);
       res.locals.pendingInvites = db
         .prepare("SELECT COUNT(*) AS n FROM connections WHERE addressee_id = ? AND status = 'pending'")
         .get(req.user.id).n;
@@ -80,6 +84,7 @@ function createApp(options = {}) {
   app.use(require('./routes/jobs'));
   app.use(require('./routes/ats'));
   app.use(require('./routes/talents'));
+  app.use(require('./routes/followup'));
   app.use(require('./routes/admin'));
   app.use(require('./routes/feeds'));
   app.use(require('./routes/integrations'));

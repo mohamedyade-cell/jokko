@@ -34,9 +34,11 @@ article.card h2 { margin-top: 1.2em; }
 .nav a:hover { text-decoration: none; color: var(--text); }
 .nav a.btn { color: #fff; }
 @media (max-width: 640px) {
+  .topbar-inner { height: auto; flex-wrap: wrap; padding-top: 6px; padding-bottom: 4px; gap: 2px; }
   .brand { font-size: 1.25rem; }
-  .nav { gap: 0; }
-  .nav a, .nav .link { padding: 6px 6px; font-size: .82rem; }
+  .nav { gap: 0; flex-wrap: wrap; overflow: visible; }
+  .nav a, .nav .link { padding: 5px 6px; font-size: .82rem; }
+  .nav a.active { box-shadow: none; text-decoration: underline; text-underline-offset: 4px; }
 }
 
 /* Boutons */
@@ -311,3 +313,33 @@ fieldset { border: 1px solid var(--border); border-radius: 6px; display: flex; g
 .answers { margin: 6px 0; padding-left: 22px; }
 .answers li.ok { color: var(--primary); font-weight: 600; }
 .flash ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* Suivi : entretiens, messagerie, notifications */
+.bell { position: relative; }
+.bell .badge { position: absolute; top: -2px; right: -4px; font-size: .65rem; padding: 0 5px; }
+.interview { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+.interview-confirmed { border-color: #b9e0cc; background: #f3fbf7; }
+.interview-proposed { border-color: #f3dca5; background: #fffaf0; }
+.interview-cancelled, .interview-declined, .interview-past { opacity: .65; }
+.interview-actions { margin-top: 6px; gap: 8px; }
+.respond-form { flex-basis: 100%; }
+.respond-form input { flex: 1 1 100%; padding: 4px 8px; font-size: .85rem; }
+.thread { display: flex; flex-direction: column; }
+.thread-head { border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.messages { display: flex; flex-direction: column; gap: 10px; padding: 14px 0; max-height: 60vh; overflow-y: auto; }
+.msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 80%; }
+.msg-mine { align-self: flex-end; align-items: flex-end; }
+.msg-bubble { background: #f0efe9; border-radius: 12px 12px 12px 2px; padding: 8px 12px; }
+.msg-mine .msg-bubble { background: #dff2ea; border-radius: 12px 12px 2px 12px; }
+.msg-meta { margin-top: 2px; }
+.msg-form { align-items: flex-end; border-top: 1px solid var(--border); padding-top: 10px; }
+.thread-list { padding: 0; overflow: hidden; }
+.thread-item { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text); }
+.thread-item:last-child { border-bottom: 0; }
+.thread-item:hover { background: #faf9f6; text-decoration: none; }
+.thread-item.unread { background: #f3fbf7; }
+.thread-item.unread strong { color: var(--primary); }
+.thread-item .grow { min-width: 0; }
+.notif-icon { font-size: 1.4rem; width: 40px; text-align: center; flex-shrink: 0; }
+.agenda-item { border-top: 1px solid var(--border); padding: 10px 0; gap: 12px; }
+.agenda-when { width: 220px; }

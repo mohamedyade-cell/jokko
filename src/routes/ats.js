@@ -4,6 +4,9 @@ const { requireRole } = require('../auth');
 const { STAGES, STAGE_KEYS, INBOX_STAGE, DISMISSED_STAGE, CONTRACT_TYPES, SOURCES, transaction } = require('../db');
 const { skillScoreSql, referralScoreSql, activeBadges } = require('../score');
 const { usage, retainApplication } = require('../access');
+const { notify } = require('../notify');
+const { candidateStageLabel } = require('../helpers');
+const iv = require('../interviews');
 
 const router = express.Router();
 const recruiterOnly = requireRole('recruiter');
@@ -88,7 +91,13 @@ router.get('/ats', recruiterOnly, (req, res) => {
     )
     .all(cid);
 
-  res.render('ats/dashboard', { title: 'Tableau de bord ATS', jobs, byStage, bySource, recent, usage: usage(db, cid) });
+  const interviews = db
+    .prepare(
+      `SELECT i.*, a.candidate_name, a.id AS application_id FROM interviews i JOIN applications a ON a.id = i.application_id JOIN jobs j ON j.id = a.job_id
+       WHERE j.company_id = ? AND i.status IN ('proposed', 'confirmed') AND i.starts_at >= datetime('now') ORDER BY i.starts_at LIMIT 5`,
+    )
+    .all(cid);
+  res.render('ats/dashboard', { title: 'Tableau de bord ATS', jobs, byStage, bySource, recent, interviews, iv, usage: usage(db, cid) });
 });
 
 router.get('/ats/jobs/new', recruiterOnly, (req, res) => {
@@ -197,7 +206,12 @@ router.get('/ats/applications/:id', recruiterOnly, (req, res) => {
     : null;
   const experiences = candidate && unlocked ? db.prepare('SELECT * FROM experiences WHERE user_id = ? ORDER BY start_date DESC, id DESC').all(candidate.id) : [];
   const badges = candidate ? activeBadges(db, candidate.id)[candidate.id] : [];
-  res.render('ats/application', { title: unlocked ? application.candidate_name : 'Candidature reçue', application, unlocked, notes, events, candidate, experiences, badges });
+  const interviews = unlocked ? db.prepare('SELECT * FROM interviews WHERE application_id = ? ORDER BY starts_at DESC').all(application.id) : [];
+  const messageCount = db.prepare('SELECT COUNT(*) AS n FROM messages WHERE application_id = ?').get(application.id).n;
+  res.render('ats/application', {
+    title: unlocked ? application.candidate_name : 'Candidature reçue',
+    application, unlocked, notes, events, candidate, experiences, badges, interviews, messageCount, iv,
+  });
 });
 
 // Candidature reçue → pipeline (déblocage gratuit : le candidat a postulé lui-même).
@@ -235,6 +249,13 @@ router.post('/ats/applications/:id/stage', recruiterOnly, (req, res) => {
     transaction(db, () => {
       db.prepare("UPDATE applications SET stage = ?, updated_at = datetime('now') WHERE id = ?").run(stage, application.id);
       db.prepare('INSERT INTO application_events (application_id, actor_id, from_stage, to_stage) VALUES (?, ?, ?, ?)').run(application.id, req.user.id, application.stage, stage);
+      // Le candidat suit l'avancement (les refus lui sont présentés comme « Non retenue »).
+      notify(db, application.candidate_id, {
+        type: 'stage',
+        title: `${application.job_title} : ${candidateStageLabel(stage)}`,
+        body: stage === 'refuse' ? "Le recruteur n'a pas retenu votre candidature pour ce poste. Continuez : d'autres offres vous attendent." : `Votre candidature avance chez ${req.user.company_name}.`,
+        link: stage === 'refuse' ? '/applications' : `/messages/${application.id}`,
+      });
     });
   }
   if (wantsJson) return res.json({ ok: true, stage });

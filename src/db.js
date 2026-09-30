@@ -273,7 +273,50 @@ CREATE TABLE quiz_imports (
 DELETE FROM quiz_attempts WHERE status = 'in_progress';
 `;
 
-const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3];
+// Entretiens, messagerie recruteur ↔ candidat et notifications : tout le suivi reste dans Jokko.
+const SCHEMA_V4 = `
+CREATE TABLE interviews (
+  id INTEGER PRIMARY KEY,
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  scheduled_by INTEGER REFERENCES users(id),
+  starts_at TEXT NOT NULL,
+  duration_min INTEGER NOT NULL DEFAULT 45,
+  mode TEXT NOT NULL CHECK (mode IN ('presentiel', 'visio', 'telephone')),
+  location TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'confirmed', 'declined', 'cancelled')),
+  candidate_note TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_interviews_application ON interviews(application_id);
+CREATE INDEX idx_interviews_starts ON interviews(starts_at);
+
+-- Un fil de discussion par candidature, ouvert une fois le CV débloqué.
+CREATE TABLE messages (
+  id INTEGER PRIMARY KEY,
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  sender_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  read_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_messages_application ON messages(application_id, created_at);
+
+CREATE TABLE notifications (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT DEFAULT '',
+  link TEXT DEFAULT '',
+  read_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_notifications_user ON notifications(user_id, read_at);
+`;
+
+const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4];
 
 function referralCode() {
   return crypto.randomBytes(5).toString('hex').toUpperCase();

@@ -6,6 +6,7 @@ const multer = require('multer');
 const { verifyCsrf } = require('../auth');
 const { grantBadge, CERTIFICATION_POINTS, CAMPUS_POINTS } = require('../score');
 const quiz = require('../quiz');
+const { notify } = require('../notify');
 const quizImport = require('../quizImport');
 
 const router = express.Router();
@@ -50,6 +51,9 @@ router.post('/admin/credentials/:id/:decision', adminOnly, (req, res) => {
   transaction(db, () => {
     const status = req.params.decision === 'verify' ? 'verified' : 'rejected';
     db.prepare("UPDATE credentials SET status = ?, review_note = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?").run(status, note, req.user.id, cred.id);
+    notify(db, cred.user_id, status === 'verified'
+      ? { type: 'badge', title: `Badge attribué : ${cred.type === 'campus' ? `Jokko Campus · ${cred.school_name}` : cred.title}`, body: 'Votre Jokko Score a été mis à jour.', link: '/skills' }
+      : { type: 'badge', title: `Demande non validée : ${cred.title}`, body: note || 'Consultez le motif dans vos certifications.', link: '/profile/credentials' });
     if (status !== 'verified') return;
     if (cred.type === 'campus') {
       grantBadge(db, { userId: cred.user_id, kind: 'campus', skillKey: `campus:${cred.school_id}`, label: `Jokko Campus · ${cred.school_name}`, points: CAMPUS_POINTS, sourceRef: `credential:${cred.id}` });

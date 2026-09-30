@@ -1,0 +1,29 @@
+<%- include('../partials/header') %>
+<a href="/ats" class="small">← Tableau de bord</a>
+<h1>Agenda des entretiens</h1>
+<p class="muted small">Heures de <%= iv.timeZone().replace('_', ' ') %>.</p>
+<div class="card">
+  <h2>À venir (<%= upcoming.length %>)</h2>
+  <% if (!upcoming.length) { %><p class="muted">Aucun entretien prévu. Planifiez-en un depuis la fiche d'un candidat de votre pipeline.</p><% } %>
+  <% upcoming.forEach(function (i) { %>
+    <div class="agenda-item row wrap">
+      <div class="agenda-when"><strong><%= iv.formatWhen(i.starts_at) %></strong><div class="small muted"><%= i.duration_min %> min · <%= iv.MODES[i.mode] %></div></div>
+      <div class="grow"><a href="/ats/applications/<%= i.application_id %>"><strong><%= i.candidate_name %></strong></a><div class="small muted"><%= i.job_title %></div></div>
+      <span class="status status-<%= { proposed: 'pending', confirmed: 'verified', declined: 'rejected' }[i.status] %>"><%= iv.STATUSES[i.status] %></span>
+      <a class="small" href="/interviews/<%= i.id %>.ics">.ics</a>
+    </div>
+  <% }) %>
+</div>
+<% if (past.length) { %>
+<div class="card">
+  <h2>7 derniers jours</h2>
+  <% past.forEach(function (i) { %>
+    <div class="agenda-item row wrap muted">
+      <div class="agenda-when"><%= iv.formatWhen(i.starts_at) %></div>
+      <div class="grow"><a href="/ats/applications/<%= i.application_id %>"><%= i.candidate_name %></a> · <%= i.job_title %></div>
+      <span class="small"><%= iv.STATUSES[i.status] %></span>
+    </div>
+  <% }) %>
+</div>
+<% } %>
+<%- include('../partials/footer') %>

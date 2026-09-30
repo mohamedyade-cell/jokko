@@ -59,6 +59,31 @@
     <% } %>
 
     <% if (unlocked) { %>
+    <div class="card" id="entretiens">
+      <div class="row wrap">
+        <h2 class="grow">Entretiens</h2>
+        <% if (candidate) { %><a class="btn btn-outline btn-small" href="/messages/<%= application.id %>">💬 Messages<%= messageCount ? ' (' + messageCount + ')' : '' %></a><% } %>
+      </div>
+      <% interviews.forEach(function (i) { %><%- include('../partials/interview-card', { i, side: 'recruiter' }) %><% }) %>
+      <details <%= interviews.length ? '' : 'open' %>>
+        <summary class="small">+ Planifier un entretien</summary>
+        <form method="post" action="/ats/applications/<%= application.id %>/interviews" class="form form-grid">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label>Date et heure <small class="muted">(heure de <%= iv.timeZone().replace('_', ' ') %>)</small> <input type="datetime-local" name="starts_at" required></label>
+          <label>Durée
+            <select name="duration_min"><% [20, 30, 45, 60, 90, 120].forEach(function (d) { %><option value="<%= d %>" <%= d === 45 ? 'selected' : '' %>><%= d %> min</option><% }) %></select>
+          </label>
+          <label>Type
+            <select name="mode"><% Object.keys(iv.MODES).forEach(function (k) { %><option value="<%= k %>"><%= iv.MODES[k] %></option><% }) %></select>
+          </label>
+          <label>Lieu, lien visio ou numéro <input name="location" maxlength="300" placeholder="ex. 12 rue Carnot, Dakar / https://meet…"></label>
+          <label class="span-2">Message au candidat <small class="muted">(documents à apporter, interlocuteurs…)</small> <textarea name="notes" rows="2" maxlength="2000"></textarea></label>
+          <div class="span-2"><button class="btn">Proposer l'entretien</button>
+            <% if (!candidate) { %><span class="small muted"> Candidat sans compte Jokko : pensez à lui transmettre l'invitation par e-mail.</span><% } %></div>
+        </form>
+      </details>
+    </div>
+
     <div class="card">
       <h2>Notes de l'équipe</h2>
       <form method="post" action="/ats/applications/<%= application.id %>/notes" class="form">

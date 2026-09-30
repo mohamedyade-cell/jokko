@@ -1,0 +1,28 @@
+<% var past = iv.isPast(i); %>
+<div class="interview interview-<%= i.status %><%= past ? ' interview-past' : '' %>" id="entretien-<%= i.id %>">
+  <div class="row wrap">
+    <div class="grow">
+      <strong>📅 <%= iv.formatWhen(i.starts_at) %></strong> · <%= i.duration_min %> min
+      <div class="small"><%= iv.MODES[i.mode] %><% if (i.location) { %> · <%= /^https?:\/\//.test(i.location) ? '' : i.location %><% if (/^https?:\/\//.test(i.location)) { %><a href="<%= i.location %>" target="_blank" rel="noopener noreferrer">Lien de la réunion</a><% } %><% } %></div>
+      <% if (i.notes) { %><div class="small muted pre"><%= i.notes %></div><% } %>
+      <% if (i.candidate_note) { %><div class="small">Réponse du candidat : « <%= i.candidate_note %> »</div><% } %>
+    </div>
+    <span class="status status-<%= { proposed: 'pending', confirmed: 'verified', declined: 'rejected', cancelled: 'rejected' }[i.status] %>"><%= past && i.status !== 'cancelled' ? 'Passé' : iv.STATUSES[i.status] %></span>
+  </div>
+  <div class="row wrap interview-actions">
+    <% if (i.status !== 'cancelled' && i.status !== 'declined') { %><a class="small" href="/interviews/<%= i.id %>.ics">+ Ajouter à mon agenda</a><% } %>
+    <% if (side === 'candidate' && !past && (i.status === 'proposed' || i.status === 'confirmed')) { %>
+      <form method="post" action="/interviews/<%= i.id %>/respond" class="row wrap grow respond-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input name="note" placeholder="Message au recruteur (facultatif)" maxlength="1000" class="grow">
+        <% if (i.status === 'proposed') { %><button name="decision" value="confirm" class="btn btn-small">Confirmer</button><% } %>
+        <button name="decision" value="decline" class="btn btn-outline btn-small"><%= i.status === 'confirmed' ? 'Annuler ma venue' : 'Décliner' %></button>
+      </form>
+    <% } %>
+    <% if (side === 'recruiter' && !past && i.status !== 'cancelled') { %>
+      <form method="post" action="/ats/interviews/<%= i.id %>/cancel" class="inline" onsubmit="return confirm('Annuler cet entretien ? Le candidat sera prévenu.')">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link small">Annuler l'entretien</button>
+      </form>
+    <% } %>
+  </div>
+</div>

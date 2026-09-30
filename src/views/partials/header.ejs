@@ -22,6 +22,8 @@
           <a href="/skills" class="<%= path.startsWith('/skills') || path.startsWith('/quiz') ? 'active' : '' %>">Compétences</a>
           <a href="/applications" class="<%= path.startsWith('/applications') ? 'active' : '' %>">Candidatures</a>
         <% } %>
+        <a href="/messages" class="<%= path.startsWith('/messages') ? 'active' : '' %>">Messages<% if (unreadMessages) { %> <span class="badge"><%= unreadMessages %></span><% } %></a>
+        <a href="/notifications" class="bell <%= path.startsWith('/notifications') ? 'active' : '' %>" title="Notifications" aria-label="Notifications<%= unreadNotifications ? ' (' + unreadNotifications + ' non lues)' : '' %>">🔔<% if (unreadNotifications) { %><span class="badge"><%= unreadNotifications %></span><% } %></a>
         <% if (currentUser.is_admin) { %><a href="/admin" class="<%= path.startsWith('/admin') ? 'active' : '' %>">Admin</a><% } %>
         <a href="/profile/<%= currentUser.id %>" class="<%= path.startsWith('/profile') ? 'active' : '' %>">Profil</a>
         <form method="post" action="/logout" class="inline">

@@ -107,6 +107,13 @@ recordApplication(db, { jobId: jobData, name: 'Mariama Kane', email: 'mariama.ka
 db.prepare("UPDATE applications SET stage = 'entretien', rating = 4 WHERE candidate_email = 'moussa@candidat.test'").run();
 db.prepare("UPDATE applications SET stage = 'preselection', rating = 3 WHERE candidate_email = 'aminata.ba@example.com'").run();
 
+// Suivi : entretien proposé à Moussa et échange de messages.
+const moussaApp = db.prepare("SELECT id FROM applications WHERE candidate_email = 'moussa@candidat.test'").get().id;
+const in2Days = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10) + ' 10:00:00';
+db.prepare("INSERT INTO interviews (application_id, scheduled_by, starts_at, duration_min, mode, location, notes) VALUES (?, ?, ?, 45, 'presentiel', 'Teranga Tech, 12 rue Carnot, Dakar', 'Apportez une pièce d’identité.')").run(moussaApp, awa, in2Days);
+db.prepare('INSERT INTO messages (application_id, sender_id, body) VALUES (?, ?, ?)').run(moussaApp, awa, 'Bonjour Moussa, votre pitch nous a beaucoup plu. Je vous propose un entretien dans nos locaux : les détails sont juste à côté, merci de confirmer.');
+db.prepare('INSERT INTO notifications (user_id, type, title, body, link) VALUES (?, ?, ?, ?, ?)').run(moussa, 'interview', 'Entretien proposé par Teranga Tech', 'Développeur Back-End Node.js · merci de confirmer.', `/messages/${moussaApp}`);
+
 const connect = (a, b, status = 'accepted') => db.prepare('INSERT INTO connections (requester_id, addressee_id, status) VALUES (?, ?, ?)').run(a, b, status);
 connect(moussa, fatou);
 connect(awa, moussa);

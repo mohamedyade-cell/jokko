@@ -41,6 +41,16 @@
 
   <aside>
     <div class="card">
+      <div class="row"><h3 class="grow">Prochains entretiens</h3><a class="small" href="/ats/interviews">Agenda →</a></div>
+      <% if (!interviews.length) { %><p class="muted small">Aucun entretien prévu.</p><% } %>
+      <% interviews.forEach(function (i) { %>
+        <div class="mini-job">
+          <a href="/ats/applications/<%= i.application_id %>"><%= i.candidate_name %></a>
+          <div class="muted small"><%= iv.formatWhen(i.starts_at) %> · <%= i.status === 'confirmed' ? '✓ confirmé' : 'à confirmer' %></div>
+        </div>
+      <% }) %>
+    </div>
+    <div class="card">
       <h3>Sources des candidatures</h3>
       <% Object.keys(bySource).forEach(function (k) { %>
         <div class="row"><span class="source source-<%= k %>"><%= h.sourceLabel(k) %></span><strong class="push-right"><%= bySource[k] %></strong></div>

@@ -1,0 +1,20 @@
+<%- include('partials/header') %>
+<h1>Messages</h1>
+<% if (!threads.length) { %>
+  <div class="card muted"><%= currentUser.role === 'candidate' ? "Quand un recruteur retient votre candidature ou débloque votre profil, vous pouvez échanger avec lui ici." : "Aucune conversation. Ouvrez une fiche candidat débloquée pour lui écrire ou planifier un entretien." %></div>
+<% } else { %>
+<div class="card thread-list">
+  <% threads.forEach(function (t) { %>
+    <a class="thread-item <%= t.unread ? 'unread' : '' %>" href="/messages/<%= t.id %>">
+      <%- include('partials/avatar', { name: currentUser.role === 'candidate' ? t.company_name : t.candidate_name }) %>
+      <div class="grow">
+        <div class="row"><strong class="grow"><%= currentUser.role === 'candidate' ? t.company_name : t.candidate_name %></strong><span class="small muted"><%= t.last_at ? h.timeAgo(t.last_at) : '' %></span></div>
+        <div class="small muted"><%= t.job_title %><% if (t.pending_interviews) { %> · <span class="status status-pending">entretien à confirmer</span><% } %></div>
+        <div class="small ellipsis"><%= t.last_body || 'Pas encore de message' %></div>
+      </div>
+      <% if (t.unread) { %><span class="badge"><%= t.unread %></span><% } %>
+    </a>
+  <% }) %>
+</div>
+<% } %>
+<%- include('partials/footer') %>

@@ -9,7 +9,7 @@
 | 🏅 **Badges et Jokko Score** | Badges issus des quiz, des certifications vérifiées et des écoles Jokko Campus. Score **compétences** plafonné à 100 (meilleur badge valide par compétence) et score **parrainage** calculé à part : parrainer ne compense jamais un manque de compétences. |
 | 📋 **ATS intégré** | CVthèque filtrable (badge + niveau, école, score, vidéo, disponibilité), module **besoin urgent** (journaliers / intérimaires disponibles, classés par Jokko Score), **déblocage du CV** avant l'entrée dans le pipeline en 6 étapes, cloisonnement total par entreprise, offres PME / Corporate. |
 
-Plus : profils, relations et fil d'actualité ; recherche d'offres et candidature en un clic ; multidiffusion Indeed / LinkedIn (flux XML) et réception de leurs candidatures (webhook).
+Plus : **suivi sans quitter Jokko** (entretiens avec confirmation du candidat et ajout à l'agenda, messagerie recruteur ↔ candidat, notifications) ; profils, relations et fil d'actualité ; recherche d'offres et candidature en un clic ; multidiffusion Indeed / LinkedIn (flux XML) et réception de leurs candidatures (webhook).
 
 ## Démarrage rapide
 
@@ -42,6 +42,12 @@ Configuration : voir `.env.example` (variables d'environnement).
 3. Pipeline : `Nouveau → Présélectionné → Entretien → Offre → Embauché / Rejeté` (glisser-déposer ou un clic), notes d'équipe, évaluation, historique.
 
 Les candidatures spontanées (Jokko, LinkedIn, Indeed) arrivent dans **Candidatures reçues**, également masquées ; les **retenir** les fait entrer dans le pipeline sans consommer de crédit.
+
+**Suivi après déblocage** (remplace e-mails et groupes WhatsApp) :
+
+- **Entretiens** (fiche candidat → *Planifier un entretien*) : date, durée, sur place / visio / téléphone, lieu ou lien, consignes. Le candidat est notifié, **confirme ou décline** avec un message, et chacun peut l'ajouter à son agenda (fichier `.ics` compatible Google Agenda, Outlook, téléphone). Planifier un entretien fait passer le candidat à l'étape *Entretien*. Agenda de l'entreprise : `/ats/interviews`. Les heures sont celles de Dakar / Abidjan (GMT), modifiables avec `JOKKO_TZ`.
+- **Messagerie** : un fil par candidature, ouvert uniquement une fois le CV débloqué, visible seulement par l'entreprise et le candidat concernés ; compteur de messages non lus et accusé « Lu ».
+- **Notifications** (🔔) : nouvelle candidature, candidature retenue ou profil débloqué, changement d'étape (un refus est présenté au candidat comme « Non retenue »), entretien proposé / confirmé / annulé, nouveau message, badge vérifié.
 
 **Offres entreprise** (`src/db.js`, `PLANS`) : **PME** – 3 offres ouvertes et 10 déblocages de CV par mois ; **Corporate** – illimité. L'équipe Jokko change l'offre d'une entreprise depuis `/admin`.
 
@@ -137,12 +143,15 @@ src/
   quizImport.js     import / export Excel et CSV de la banque de questions
   score.js          badges et Jokko Score
   video.js          recompression optionnelle (ffmpeg)
+  interviews.js     fuseau horaire, calendrier .ics
+  notify.js         notifications internes
   routes/
     auth.js         inscription (parrainage) / connexion
     video.js        pitch vidéo : enregistrement, diffusion
     skills.js       quiz, certifications, Jokko Campus
     talents.js      CVthèque, besoin urgent, déblocage des CV
     admin.js        vérifications, écoles, offres, banque de questions
+    followup.js     entretiens, messagerie, notifications
     feed.js         accueil et fil d'actualité
     profile.js      profils et expériences
     network.js      invitations et relations
@@ -163,4 +172,4 @@ Sécurité : mots de passe bcrypt, jeton CSRF sur tous les formulaires, cookies 
 - Remplacer le stockage de sessions en mémoire par un store persistant (ex. Redis ou un store SQLite).
 - Sauvegarder `data/` et `uploads/` (ou déplacer les CV vers un stockage objet).
 - Installer ffmpeg et définir `FFMPEG_PATH` pour recompresser les vidéos envoyées depuis un téléphone ; stocker les vidéos sur un stockage objet / CDN.
-- Pistes suivantes : paiement des offres PME / Corporate, notifications e-mail et SMS, plusieurs recruteurs par entreprise, planification d'entretiens, espace école pour Jokko Campus.
+- Pistes suivantes : paiement des offres PME / Corporate (Wave, Orange Money), envoi des notifications par e-mail, SMS ou WhatsApp, plusieurs recruteurs par entreprise, planification d'entretiens, espace école pour Jokko Campus.

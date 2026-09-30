@@ -1,4 +1,5 @@
 const { transaction, INBOX_STAGE } = require('./db');
+const { notifyCompany } = require('./notify');
 
 // Enregistre une candidature (interne, reçue de LinkedIn / Indeed, ou issue de la CVthèque).
 // Une même adresse e-mail ne peut postuler qu'une fois par offre.
@@ -23,6 +24,11 @@ function recordApplication(db, a) {
         .lastInsertRowid,
     );
     db.prepare('INSERT INTO application_events (application_id, actor_id, from_stage, to_stage) VALUES (?, ?, NULL, ?)').run(appId, a.actorId || null, stage);
+    if (stage === INBOX_STAGE) {
+      const job = db.prepare('SELECT title, company_id FROM jobs WHERE id = ?').get(a.jobId);
+      const via = { jokko: 'Jokko', linkedin: 'LinkedIn', indeed: 'Indeed' }[a.source] || a.source;
+      notifyCompany(db, job.company_id, { type: 'application', title: `Nouvelle candidature · ${job.title}`, body: `Reçue via ${via}, à examiner.`, link: `/ats/jobs/${a.jobId}` });
+    }
     return appId;
   });
   return { created: true, id };

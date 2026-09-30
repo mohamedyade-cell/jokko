@@ -1,0 +1,22 @@
+<%- include('partials/header') %>
+<div class="row wrap">
+  <h1 class="grow">Notifications</h1>
+  <% if (notifications.some(function (n) { return !n.read_at; })) { %>
+    <form method="post" action="/notifications/read-all" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-outline btn-small">Tout marquer comme lu</button>
+    </form>
+  <% } %>
+</div>
+<% if (!notifications.length) { %><div class="card muted">Aucune notification.</div><% } %>
+<div class="card thread-list">
+  <% notifications.forEach(function (n) { %>
+    <a class="thread-item <%= n.read_at ? '' : 'unread' %>" href="/notifications/<%= n.id %>">
+      <span class="notif-icon"><%= { interview: '📅', message: '💬', stage: '📋', unlock: '🔓', application: '📥', badge: '🏅' }[n.type] || '🔔' %></span>
+      <div class="grow">
+        <div class="row"><strong class="grow"><%= n.title %></strong><span class="small muted"><%= h.timeAgo(n.created_at) %></span></div>
+        <% if (n.body) { %><div class="small muted"><%= n.body %></div><% } %>
+      </div>
+    </a>
+  <% }) %>
+</div>
+<%- include('partials/footer') %>
