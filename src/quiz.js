@@ -1,14 +1,14 @@
 const crypto = require('node:crypto');
-const bank = require('./quizzes/bank');
 const { transaction } = require('./db');
 const { QUIZ_LEVEL_POINTS, grantBadge } = require('./score');
 
-// draw : nombre de questions tirées ; seconds : temps limite par question.
-// Durées totales : ~5 min, ~8 min et ~13 min.
+// Un quiz = un badge importé (id_badge), à un niveau donné.
+// draw : nombre de questions tirées dans la banque ; seconds : temps limite par question.
+// Durées : 10 × 30 s = 5 min, 12 × 45 s = 9 min, 15 × 60 s = 15 min.
 const LEVELS = {
-  debutant: { label: 'Débutant', draw: 6, seconds: 50 },
-  intermediaire: { label: 'Intermédiaire', draw: 8, seconds: 60 },
-  avance: { label: 'Avancé', draw: 10, seconds: 80 },
+  debutant: { label: 'Débutant', draw: 10, seconds: 30 },
+  intermediaire: { label: 'Intermédiaire', draw: 12, seconds: 45 },
+  avance: { label: 'Avancé', draw: 15, seconds: 60 },
 };
 const LEVEL_KEYS = Object.keys(LEVELS);
 const PASS_RATIO = 0.7;
@@ -16,6 +16,8 @@ const PASS_RATIO = 0.7;
 const GRACE_MS = 5000;
 // Un badge peut être renouvelé quand il expire dans moins de RENEW_WINDOW_DAYS jours.
 const RENEW_WINDOW_DAYS = 30;
+// En dessous, le badge n'est pas proposé : trop peu de questions pour un tirage aléatoire utile.
+const MIN_QUESTIONS = 5;
 
 function cooldownDays() {
   return Number(process.env.QUIZ_COOLDOWN_DAYS ?? 3);
@@ -25,10 +27,8 @@ function validityDays() {
   return Number(process.env.BADGE_VALIDITY_DAYS ?? 365);
 }
 
-const QUIZZES = bank.map((q) => ({ ...q, skillKey: `quiz:${q.slug}` }));
-
-function getQuiz(slug) {
-  return QUIZZES.find((q) => q.slug === slug) || null;
+function skillKey(quiz) {
+  return `quiz:${quiz.family_slug}`;
 }
 
 function sqlDate(date) {
@@ -48,21 +48,50 @@ function shuffle(items) {
   return a;
 }
 
-// État d'un quiz / niveau pour un candidat : badge valide, délai d'attente, tentative en cours.
-function levelStatus(db, userId, slug, level) {
-  const quiz = getQuiz(slug);
+function questionCount(quiz) {
+  return Math.min(LEVELS[quiz.level].draw, quiz.question_count);
+}
+
+// Badges proposés aux candidats : actifs et avec assez de questions actives.
+function listQuizzes(db, { includeInactive = false } = {}) {
+  return db
+    .prepare(
+      `SELECT z.*, (SELECT COUNT(*) FROM quiz_questions q WHERE q.quiz_id = z.id AND q.active = 1) AS question_count
+       FROM quizzes z ${includeInactive ? '' : 'WHERE z.active = 1'}
+       ORDER BY z.domain, z.family, CASE z.level WHEN 'debutant' THEN 1 WHEN 'intermediaire' THEN 2 ELSE 3 END`,
+    )
+    .all()
+    .filter((z) => includeInactive || z.question_count >= MIN_QUESTIONS);
+}
+
+// Compétences (séries de badges) pour les filtres de la CVthèque.
+function listFamilies(db) {
+  const seen = new Map();
+  for (const z of listQuizzes(db)) if (!seen.has(z.family_slug)) seen.set(z.family_slug, { key: skillKey(z), label: z.family, domain: z.domain });
+  return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label, 'fr'));
+}
+
+function getQuiz(db, badgeCode) {
+  return db
+    .prepare(
+      `SELECT z.*, (SELECT COUNT(*) FROM quiz_questions q WHERE q.quiz_id = z.id AND q.active = 1) AS question_count
+       FROM quizzes z WHERE z.badge_code = ?`,
+    )
+    .get(badgeCode);
+}
+
+// État d'un badge pour un candidat : badge valide, délai d'attente, tentative en cours.
+function quizStatus(db, userId, quiz) {
   const badge = db
     .prepare(
-      `SELECT * FROM badges b WHERE user_id = ? AND kind = 'quiz' AND skill_key = ? AND level = ?
-         AND (expires_at IS NULL OR expires_at > datetime('now')) ORDER BY expires_at DESC LIMIT 1`,
+      `SELECT * FROM badges WHERE user_id = ? AND kind = 'quiz' AND source_ref LIKE ? AND (expires_at IS NULL OR expires_at > datetime('now'))
+       ORDER BY expires_at DESC LIMIT 1`,
     )
-    .get(userId, quiz.skillKey, level);
+    .get(userId, `badge:${quiz.badge_code}:%`);
   const lastFail = db
-    .prepare("SELECT finished_at FROM quiz_attempts WHERE user_id = ? AND quiz_slug = ? AND level = ? AND status = 'failed' ORDER BY finished_at DESC LIMIT 1")
-    .get(userId, slug, level);
-  const inProgress = db
-    .prepare("SELECT id FROM quiz_attempts WHERE user_id = ? AND quiz_slug = ? AND level = ? AND status = 'in_progress'")
-    .get(userId, slug, level);
+    .prepare("SELECT finished_at FROM quiz_attempts WHERE user_id = ? AND quiz_slug = ? AND status = 'failed' ORDER BY finished_at DESC LIMIT 1")
+    .get(userId, quiz.badge_code);
+  const inProgress = db.prepare("SELECT id FROM quiz_attempts WHERE user_id = ? AND quiz_slug = ? AND status = 'in_progress'").get(userId, quiz.badge_code);
 
   let cooldownUntil = null;
   if (lastFail) {
@@ -70,38 +99,30 @@ function levelStatus(db, userId, slug, level) {
     if (until > new Date()) cooldownUntil = until;
   }
   let renewable = true;
-  if (badge && badge.expires_at) {
-    renewable = fromSqlDate(badge.expires_at).getTime() - Date.now() < RENEW_WINDOW_DAYS * 86400000;
-  } else if (badge) {
-    renewable = false;
-  }
+  if (badge) renewable = Boolean(badge.expires_at) && fromSqlDate(badge.expires_at).getTime() - Date.now() < RENEW_WINDOW_DAYS * 86400000;
   return { badge, cooldownUntil, inProgressId: inProgress ? inProgress.id : null, renewable };
 }
 
-function startAttempt(db, userId, slug, level) {
-  const quiz = getQuiz(slug);
-  if (!quiz || !LEVELS[level]) return { error: 'Quiz introuvable.' };
-  const pool = quiz.questions[level] || [];
-  if (!pool.length) return { error: "Ce niveau n'est pas encore disponible." };
+function startAttempt(db, userId, badgeCode) {
+  const quiz = getQuiz(db, badgeCode);
+  if (!quiz || !quiz.active || quiz.question_count < MIN_QUESTIONS) return { error: "Ce quiz n'est pas disponible." };
 
-  const status = levelStatus(db, userId, slug, level);
+  const status = quizStatus(db, userId, quiz);
   if (status.inProgressId) return { id: status.inProgressId };
-  if (status.cooldownUntil) {
-    return { error: `Vous pourrez retenter ce quiz à partir du ${status.cooldownUntil.toLocaleDateString('fr-FR')}.` };
-  }
+  if (status.cooldownUntil) return { error: `Vous pourrez retenter ce quiz à partir du ${status.cooldownUntil.toLocaleDateString('fr-FR')}.` };
   if (!status.renewable) return { error: 'Vous avez déjà ce badge, valide encore plusieurs mois.' };
 
-  const count = Math.min(LEVELS[level].draw, pool.length);
-  const questions = shuffle(pool.map((_, i) => i))
-    .slice(0, count)
-    .map((i) => ({ i, order: shuffle(pool[i].slice(1).map((_, c) => c)) }));
+  const pool = db.prepare('SELECT id, choices FROM quiz_questions WHERE quiz_id = ? AND active = 1').all(quiz.id);
+  const questions = shuffle(pool)
+    .slice(0, questionCount(quiz))
+    .map((q) => ({ q: q.id, order: shuffle(JSON.parse(q.choices).map((_, c) => c)) }));
 
   return transaction(db, () => {
     // Une tentative abandonnée compte comme un échec : impossible de relancer pour tomber sur des questions plus faciles.
     db.prepare("UPDATE quiz_attempts SET status = 'failed', finished_at = datetime('now') WHERE user_id = ? AND status = 'in_progress'").run(userId);
     const id = db
       .prepare('INSERT INTO quiz_attempts (user_id, quiz_slug, level, questions) VALUES (?, ?, ?, ?)')
-      .run(userId, slug, level, JSON.stringify(questions)).lastInsertRowid;
+      .run(userId, quiz.badge_code, quiz.level, JSON.stringify(questions)).lastInsertRowid;
     return { id: Number(id) };
   });
 }
@@ -109,13 +130,16 @@ function startAttempt(db, userId, slug, level) {
 function loadAttempt(db, userId, attemptId) {
   const attempt = db.prepare('SELECT * FROM quiz_attempts WHERE id = ? AND user_id = ?').get(attemptId, userId);
   if (!attempt) return null;
-  return { ...attempt, questions: JSON.parse(attempt.questions), quiz: getQuiz(attempt.quiz_slug), levelInfo: LEVELS[attempt.level] };
+  // Les tentatives terminées sur l'ancienne banque intégrée n'ont plus de quiz associé.
+  const quiz = getQuiz(db, attempt.quiz_slug) || { family: attempt.quiz_slug, badge_code: attempt.quiz_slug };
+  return { ...attempt, questions: JSON.parse(attempt.questions), quiz, levelInfo: LEVELS[attempt.level] };
 }
 
-// Question courante, affichée sans la bonne réponse. Le chronomètre démarre au premier affichage.
+// Question courante, sans la bonne réponse. Le chronomètre démarre au premier affichage.
 function currentQuestion(db, attempt) {
   const entry = attempt.questions[attempt.current_index];
-  const item = attempt.quiz.questions[attempt.level][entry.i];
+  const row = db.prepare('SELECT text, choices FROM quiz_questions WHERE id = ?').get(entry.q);
+  const choices = JSON.parse(row.choices);
   let servedMs = attempt.question_served_ms;
   if (servedMs == null) {
     servedMs = Date.now();
@@ -126,8 +150,8 @@ function currentQuestion(db, attempt) {
     index: attempt.current_index,
     number: attempt.current_index + 1,
     total: attempt.questions.length,
-    text: item[0],
-    choices: entry.order.map((c) => item[1 + c]),
+    text: row.text,
+    choices: entry.order.map((c) => choices[c]),
     secondsLeft: Math.max(0, Math.ceil((servedMs + limitMs - Date.now()) / 1000)),
     seconds: attempt.levelInfo.seconds,
   };
@@ -137,9 +161,10 @@ function currentQuestion(db, attempt) {
 function answerQuestion(db, attempt, index, choicePos) {
   if (attempt.status !== 'in_progress' || index !== attempt.current_index) return attempt;
   const entry = attempt.questions[index];
+  const { answer_index: answerIndex } = db.prepare('SELECT answer_index FROM quiz_questions WHERE id = ?').get(entry.q);
   const elapsed = attempt.question_served_ms == null ? Infinity : Date.now() - attempt.question_served_ms;
   const inTime = elapsed <= attempt.levelInfo.seconds * 1000 + GRACE_MS;
-  const correct = inTime && Number.isInteger(choicePos) && entry.order[choicePos] === 0;
+  const correct = inTime && Number.isInteger(choicePos) && entry.order[choicePos] === answerIndex;
   const nextIndex = index + 1;
   const correctCount = attempt.correct_count + (correct ? 1 : 0);
   const finished = nextIndex >= attempt.questions.length;
@@ -156,11 +181,11 @@ function answerQuestion(db, attempt, index, choicePos) {
       grantBadge(db, {
         userId: attempt.user_id,
         kind: 'quiz',
-        skillKey: attempt.quiz.skillKey,
-        label: attempt.quiz.title,
+        skillKey: skillKey(attempt.quiz),
+        label: attempt.quiz.family,
         level: attempt.level,
         points: QUIZ_LEVEL_POINTS[attempt.level],
-        sourceRef: `attempt:${attempt.id}`,
+        sourceRef: `badge:${attempt.quiz.badge_code}:attempt:${attempt.id}`,
         expiresAt: sqlDate(new Date(Date.now() + validityDays() * 86400000)),
       });
     }
@@ -169,16 +194,19 @@ function answerQuestion(db, attempt, index, choicePos) {
 }
 
 module.exports = {
-  QUIZZES,
   LEVELS,
   LEVEL_KEYS,
   PASS_RATIO,
   GRACE_MS,
-  upcoming: bank.upcoming,
+  MIN_QUESTIONS,
   cooldownDays,
   validityDays,
+  skillKey,
+  questionCount,
+  listQuizzes,
+  listFamilies,
   getQuiz,
-  levelStatus,
+  quizStatus,
   startAttempt,
   loadAttempt,
   currentQuestion,

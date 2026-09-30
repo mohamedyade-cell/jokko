@@ -9,23 +9,35 @@ const { getScore, activeBadges, SKILL_SCORE_CAP, REFERRAL_POINTS } = require('..
 const router = express.Router();
 const candidateOnly = requireRole('candidate');
 
-// Catalogue des quiz + Jokko Score du candidat.
+// Catalogue des badges (importés par l'équipe Jokko) + Jokko Score du candidat.
 router.get('/skills', candidateOnly, (req, res) => {
   const db = req.app.locals.db;
-  const catalog = quiz.QUIZZES.map((q) => ({
-    ...q,
-    levels: quiz.LEVEL_KEYS.map((level) => ({
-      key: level,
-      ...quiz.LEVELS[level],
-      questionCount: Math.min(quiz.LEVELS[level].draw, (q.questions[level] || []).length),
-      minutes: Math.round((Math.min(quiz.LEVELS[level].draw, (q.questions[level] || []).length) * quiz.LEVELS[level].seconds) / 60),
-      ...quiz.levelStatus(db, req.user.id, q.slug, level),
-    })),
-  }));
+  const all = quiz.listQuizzes(db);
+  const domains = [...new Set(all.map((z) => z.domain))];
+  const filters = { domaine: domains.includes(req.query.domaine) ? req.query.domaine : '', q: String(req.query.q || '').trim() };
+  const needle = filters.q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const matches = (z) =>
+    (!filters.domaine || z.domain === filters.domaine) &&
+    (!needle || `${z.family} ${z.competence} ${z.domain}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(needle));
+
+  // Domaine → compétence (série de badges) → niveaux.
+  const catalog = [];
+  for (const z of all.filter(matches)) {
+    let domain = catalog.find((d) => d.name === z.domain);
+    if (!domain) catalog.push((domain = { name: z.domain, families: [] }));
+    let family = domain.families.find((f) => f.slug === z.family_slug);
+    if (!family) domain.families.push((family = { slug: z.family_slug, name: z.family, levels: [] }));
+    const info = quiz.LEVELS[z.level];
+    const count = quiz.questionCount(z);
+    family.levels.push({ ...z, ...info, questionCount: count, minutes: Math.round((count * info.seconds) / 60), ...quiz.quizStatus(db, req.user.id, z) });
+  }
+
   res.render('skills', {
     title: 'Compétences et Jokko Score',
     catalog,
-    upcoming: quiz.upcoming,
+    domains,
+    filters,
+    total: all.length,
     score: getScore(db, req.user.id),
     badges: activeBadges(db, req.user.id)[req.user.id],
     cap: SKILL_SCORE_CAP,
@@ -36,8 +48,8 @@ router.get('/skills', candidateOnly, (req, res) => {
   });
 });
 
-router.post('/skills/:slug/:level/start', candidateOnly, (req, res) => {
-  const result = quiz.startAttempt(req.app.locals.db, req.user.id, req.params.slug, req.params.level);
+router.post('/skills/:code/start', candidateOnly, (req, res) => {
+  const result = quiz.startAttempt(req.app.locals.db, req.user.id, req.params.code);
   if (result.error) {
     req.session.flash = { type: 'error', message: result.error };
     return res.redirect('/skills');
@@ -48,12 +60,12 @@ router.post('/skills/:slug/:level/start', candidateOnly, (req, res) => {
 router.get('/quiz/:id', candidateOnly, (req, res) => {
   const db = req.app.locals.db;
   const attempt = quiz.loadAttempt(db, req.user.id, Number(req.params.id));
-  if (!attempt || !attempt.quiz) return res.status(404).render('error', { title: 'Quiz introuvable', message: "Cette tentative n'existe pas." });
+  if (!attempt) return res.status(404).render('error', { title: 'Quiz introuvable', message: "Cette tentative n'existe pas." });
   if (attempt.status !== 'in_progress') {
-    return res.render('quiz-result', { title: `Résultat – ${attempt.quiz.title}`, attempt, passPercent: Math.round(quiz.PASS_RATIO * 100), cooldownDays: quiz.cooldownDays() });
+    return res.render('quiz-result', { title: 'Résultat du quiz', attempt, passPercent: Math.round(quiz.PASS_RATIO * 100), cooldownDays: quiz.cooldownDays() });
   }
   const question = quiz.currentQuestion(db, attempt);
-  res.render('quiz', { title: attempt.quiz.title, attempt, question });
+  res.render('quiz', { title: attempt.quiz.family, attempt, question });
 });
 
 router.post('/quiz/:id/answer', candidateOnly, (req, res) => {

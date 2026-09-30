@@ -231,7 +231,49 @@ INSERT OR IGNORE INTO unlocks (company_id, candidate_id, charged)
   SELECT j.company_id, a.candidate_id, 0 FROM applications a JOIN jobs j ON j.id = a.job_id WHERE a.candidate_id IS NOT NULL;
 `;
 
-const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2];
+// Banque de questions importée (Excel / CSV) au lieu d'être écrite dans le code.
+// Un quiz = un badge (id_badge) : une compétence à un niveau donné.
+const SCHEMA_V3 = `
+CREATE TABLE quizzes (
+  id INTEGER PRIMARY KEY,
+  badge_code TEXT NOT NULL UNIQUE,
+  domain TEXT NOT NULL,
+  competence TEXT NOT NULL,
+  family TEXT NOT NULL,
+  family_slug TEXT NOT NULL,
+  level TEXT NOT NULL CHECK (level IN ('debutant', 'intermediaire', 'avance')),
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_quizzes_family ON quizzes(family_slug, level);
+
+CREATE TABLE quiz_questions (
+  id INTEGER PRIMARY KEY,
+  external_id TEXT NOT NULL UNIQUE,
+  quiz_id INTEGER NOT NULL REFERENCES quizzes(id),
+  text TEXT NOT NULL,
+  choices TEXT NOT NULL,
+  answer_index INTEGER NOT NULL,
+  explanation TEXT DEFAULT '',
+  active INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_quiz_questions_quiz ON quiz_questions(quiz_id, active);
+
+CREATE TABLE quiz_imports (
+  id INTEGER PRIMARY KEY,
+  imported_by INTEGER REFERENCES users(id),
+  files TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Les tentatives en cours portaient sur l'ancienne banque intégrée au code : annulées sans pénalité.
+DELETE FROM quiz_attempts WHERE status = 'in_progress';
+`;
+
+const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3];
 
 function referralCode() {
   return crypto.randomBytes(5).toString('hex').toUpperCase();

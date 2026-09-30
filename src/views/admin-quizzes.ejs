@@ -1,0 +1,89 @@
+<%- include('partials/header') %>
+<div class="row wrap">
+  <div class="grow">
+    <a href="/admin" class="small">← Administration</a>
+    <h1>Banque de questions</h1>
+    <p class="muted"><%= totals.badges %> badges · <%= totals.questions %> questions actives · <%= totals.attempts %> tentatives</p>
+  </div>
+  <a class="btn btn-outline" href="/admin/quizzes/export.xlsx">Exporter (Excel)</a>
+  <a class="btn btn-outline" href="/admin/quizzes/export.csv">Exporter (CSV)</a>
+</div>
+
+<div class="layout-2">
+  <div class="card">
+    <h2>Importer des questions</h2>
+    <% if (errors) { %>
+      <div class="flash flash-error">
+        <strong>Import refusé, aucun changement n'a été fait.</strong> Corrigez ces lignes puis réimportez :
+        <ul class="small"><% errors.forEach(function (e) { %><li><%= e %></li><% }) %></ul>
+      </div>
+    <% } %>
+    <form method="post" action="/admin/quizzes/import" enctype="multipart/form-data" class="form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label>Fichiers Excel (.xlsx) ou CSV – plusieurs fichiers possibles
+        <input type="file" name="files" accept=".xlsx,.csv" multiple required>
+      </label>
+      <button class="btn">Importer</button>
+    </form>
+    <p class="small muted">Une ligne par question. Les questions déjà présentes (même <code>id_question</code>) sont mises à jour, les nouvelles ajoutées ; rien n'est supprimé. Pour retirer une question du tirage, ajoutez une colonne <code>actif</code> à « non ». L'import est tout ou rien : à la moindre erreur, rien n'est modifié.</p>
+  </div>
+  <aside class="card small">
+    <h3>Format du fichier</h3>
+    <p><code>id_question ; id_badge ; domaine ; competence ; niveau ; question ; A ; B ; C ; D ; reponse ; explication</code></p>
+    <ul>
+      <li><strong>niveau</strong> : Débutant, Intermédiaire ou Avancé</li>
+      <li><strong>A à F</strong> : réponses possibles (au moins 2)</li>
+      <li><strong>reponse</strong> : lettre de la bonne réponse</li>
+      <li><strong>explication</strong> : visible uniquement par l'équipe Jokko</li>
+    </ul>
+    <p>Chaque badge doit avoir au moins <%= MIN_QUESTIONS %> questions pour être proposé. Tirage : <%= LEVELS.debutant.draw %> / <%= LEVELS.intermediaire.draw %> / <%= LEVELS.avance.draw %> questions selon le niveau ; prévoyez-en davantage pour varier les tirages.</p>
+    <p>Modèle : <a href="/admin/quizzes/modele.xlsx">Excel</a> · <a href="/admin/quizzes/modele.csv">CSV</a></p>
+  </aside>
+</div>
+
+<% if (imports.length) { %>
+<div class="card">
+  <h2>Derniers imports</h2>
+  <table class="table small">
+    <thead><tr><th>Date</th><th>Par</th><th>Fichiers</th><th>Résultat</th></tr></thead>
+    <tbody>
+    <% imports.forEach(function (i) { %>
+      <tr>
+        <td><%= h.timeAgo(i.created_at) %></td>
+        <td><%= i.user_name || '—' %></td>
+        <td><%= i.files.join(', ') %></td>
+        <td>+<%= i.summary.questionsCreated %> questions, <%= i.summary.questionsUpdated %> mises à jour, +<%= i.summary.badgesCreated %> badges</td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<div class="card">
+  <h2>Badges (<%= quizzes.length %>)</h2>
+  <% if (!quizzes.length) { %><p class="muted">Aucun badge : importez votre premier fichier de questions.</p><% } %>
+  <table class="table small">
+    <% if (quizzes.length) { %><thead><tr><th>Badge</th><th>Domaine</th><th>Compétence</th><th>Niveau</th><th>Questions</th><th>Statut</th></tr></thead><% } %>
+    <tbody>
+    <% quizzes.forEach(function (z) { %>
+      <tr class="<%= z.active ? '' : 'muted' %>">
+        <td><a href="/admin/quizzes/<%= encodeURIComponent(z.badge_code) %>"><code><%= z.badge_code %></code></a></td>
+        <td><%= z.domain %></td>
+        <td><%= z.competence %></td>
+        <td><%= LEVELS[z.level].label %></td>
+        <td><%= z.question_count %>
+          <% if (z.question_count < MIN_QUESTIONS) { %><span class="status status-rejected">non proposé</span>
+          <% } else if (z.question_count <= LEVELS[z.level].draw) { %><span class="status status-pending" title="Tous les candidats reçoivent les mêmes questions (dans un ordre différent)">peu de variété</span><% } %></td>
+        <td>
+          <form method="post" action="/admin/quizzes/<%= encodeURIComponent(z.badge_code) %>/toggle" class="inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button class="link small"><%= z.active ? '✓ Actif' : 'Désactivé' %></button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('partials/footer') %>

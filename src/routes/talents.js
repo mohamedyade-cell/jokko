@@ -1,7 +1,7 @@
 const express = require('express');
 const { requireRole } = require('../auth');
 const { skillScoreSql, referralScoreSql, activeBadges, LEVEL_RANK, ACTIVE_BADGE } = require('../score');
-const { QUIZZES, LEVELS } = require('../quiz');
+const { listFamilies, LEVELS } = require('../quiz');
 const { usage, unlockCandidate } = require('../access');
 
 const router = express.Router();
@@ -13,10 +13,11 @@ const levelRankSql = `CASE b.level WHEN 'debutant' THEN 1 WHEN 'intermediaire' T
 // Mode « besoin urgent » : uniquement les candidats disponibles immédiatement, classés par Jokko Score.
 function search(req, res, urgent) {
   const db = req.app.locals.db;
+  const families = listFamilies(db);
   const f = {
     q: String(req.query.q || '').trim(),
     location: String(req.query.location || '').trim(),
-    badge: QUIZZES.some((q) => q.skillKey === req.query.badge) ? req.query.badge : '',
+    badge: families.some((fam) => fam.key === req.query.badge) ? req.query.badge : '',
     level: LEVEL_RANK[req.query.level] ? req.query.level : 'debutant',
     school: Number(req.query.school) || '',
     minScore: Math.min(100, Math.max(0, parseInt(req.query.min_score, 10) || 0)),
@@ -69,7 +70,7 @@ function search(req, res, urgent) {
     badges,
     jobs,
     schools,
-    quizzes: QUIZZES,
+    families,
     LEVELS,
     usage: usage(db, req.user.company_id),
   });

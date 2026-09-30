@@ -1,7 +1,7 @@
 <%- include('partials/header') %>
 <div class="card quiz-run narrow-wide">
   <div class="row">
-    <div class="grow"><strong><%= attempt.quiz.title %></strong> · <%= attempt.levelInfo.label %></div>
+    <div class="grow"><strong><%= attempt.quiz.family %></strong> · <%= attempt.levelInfo.label %></div>
     <div id="countdown" class="countdown" data-left="<%= question.secondsLeft %>" data-total="<%= question.seconds %>"><%= question.secondsLeft %> s</div>
   </div>
   <div class="quiz-progress"><div style="width: <%= Math.round((question.index / question.total) * 100) %>%"></div></div>

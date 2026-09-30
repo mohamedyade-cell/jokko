@@ -19,7 +19,7 @@
   <input name="location" value="<%= filters.location %>" placeholder="Ville">
   <select name="badge">
     <option value="">Tous les badges</option>
-    <% quizzes.forEach(function (q) { %><option value="<%= q.skillKey %>" <%= filters.badge === q.skillKey ? 'selected' : '' %>><%= q.title %></option><% }) %>
+    <% families.forEach(function (fam) { %><option value="<%= fam.key %>" <%= filters.badge === fam.key ? 'selected' : '' %>><%= fam.label %></option><% }) %>
   </select>
   <select name="level" aria-label="Niveau minimum">
     <% Object.keys(LEVELS).forEach(function (k) { %><option value="<%= k %>" <%= filters.level === k ? 'selected' : '' %>><%= LEVELS[k].label %> et +</option><% }) %>

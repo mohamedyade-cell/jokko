@@ -1,11 +1,13 @@
 // Remplit la base avec des données de démonstration.
 // Tous les comptes utilisent le mot de passe « motdepasse123 ».
+const fs = require('node:fs');
 const path = require('node:path');
 const bcrypt = require('bcryptjs');
 const { openDb } = require('./db');
 const { recordApplication } = require('./applications');
 const { referralCode } = require('./db');
 const { grantBadge, QUIZ_LEVEL_POINTS, CERTIFICATION_POINTS, CAMPUS_POINTS } = require('./score');
+const { importQuestions, readRows, slugify } = require('./quizImport');
 
 const db = openDb(process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'jokko.db'));
 
@@ -33,8 +35,8 @@ const addUser = (email, role, name, headline, location, skills, companyId = null
   );
 
 const in1Year = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 19).replace('T', ' ');
-const quizBadge = (userId, slug, title, level) =>
-  grantBadge(db, { userId, kind: 'quiz', skillKey: `quiz:${slug}`, label: title, level, points: QUIZ_LEVEL_POINTS[level], sourceRef: 'seed', expiresAt: in1Year });
+const quizBadge = (userId, family, level) =>
+  grantBadge(db, { userId, kind: 'quiz', skillKey: `quiz:${slugify(family)}`, label: family, level, points: QUIZ_LEVEL_POINTS[level], sourceRef: 'seed', expiresAt: in1Year });
 
 const schools = {
   ism: id(db.prepare('INSERT INTO schools (name, city) VALUES (?, ?)').run('ISM Dakar', 'Dakar')),
@@ -54,14 +56,15 @@ const aissatou = addUser('aissatou@candidat.test', 'candidate', 'Aïssatou Ndiay
 const ousmane = addUser('ousmane@candidat.test', 'candidate', 'Ousmane Sarr', 'Magasinier – cariste', 'Dakar', 'Gestion de stock, CACES, Sécurité', null, 'Disponible pour missions journalières et intérim.', { available: true });
 const khady = addUser('khady@candidat.test', 'candidate', 'Khady Faye', 'Conseillère clientèle', 'Rufisque', 'Accueil, Vente, Wolof, Français', null, '', { available: true, referredBy: aissatou });
 
-quizBadge(moussa, 'excel', 'Excel', 'intermediaire');
-quizBadge(fatou, 'excel', 'Excel', 'avance');
-quizBadge(fatou, 'comptabilite', 'Comptabilité (SYSCOHADA)', 'debutant');
-quizBadge(aissatou, 'comptabilite', 'Comptabilité (SYSCOHADA)', 'intermediaire');
-quizBadge(aissatou, 'excel', 'Excel', 'intermediaire');
-quizBadge(ousmane, 'securite', 'Sécurité au travail et secourisme', 'avance');
-quizBadge(khady, 'service-client', 'Service client et vente', 'intermediaire');
-quizBadge(khady, 'securite', 'Sécurité au travail et secourisme', 'debutant');
+quizBadge(moussa, 'Odoo Comptabilité', 'intermediaire');
+quizBadge(fatou, 'Lecture des états financiers', 'debutant');
+quizBadge(fatou, 'Modélisation financière', 'avance');
+quizBadge(fatou, 'Sage X3', 'debutant');
+quizBadge(aissatou, 'Sage 100 Comptabilité', 'intermediaire');
+quizBadge(aissatou, 'Fonds de roulement', 'debutant');
+quizBadge(ousmane, 'Sage 100 Paie', 'debutant');
+quizBadge(khady, 'QuickBooks', 'intermediaire');
+quizBadge(khady, 'Trésorerie nette', 'debutant');
 grantBadge(db, { userId: aissatou, kind: 'campus', skillKey: `campus:${schools.ism}`, label: 'Jokko Campus · ISM Dakar', points: CAMPUS_POINTS, sourceRef: 'seed' });
 grantBadge(db, { userId: fatou, kind: 'certification', skillKey: 'cert:power bi data analyst (pl-300)', label: 'Power BI Data Analyst (PL-300)', points: CERTIFICATION_POINTS, sourceRef: 'seed' });
 db.prepare("INSERT INTO credentials (user_id, type, title, issuer, obtained_on, reference) VALUES (?, 'certification', 'CACES R489 catégorie 3', 'AFPA Dakar', '2024-05', 'CAC-2024-0457')").run(ousmane);
@@ -112,5 +115,20 @@ connect(ibrahima, moussa, 'pending');
 db.prepare('INSERT INTO posts (author_id, content) VALUES (?, ?)').run(awa, 'Teranga Tech recrute ! 2 postes ouverts à Dakar, postulez directement sur Jokko 🚀');
 db.prepare('INSERT INTO posts (author_id, content) VALUES (?, ?)').run(fatou, 'Heureuse d’avoir terminé ma certification Power BI !');
 
-console.log('Données de démonstration créées. Mot de passe de tous les comptes : motdepasse123');
-console.log('  Recruteur : rh@teranga.test (PME)   Candidat : moussa@candidat.test   Admin : admin@jokko.test');
+// Banque de questions : fichiers Excel / CSV déposés dans data/quiz-import/ (non versionnés,
+// pour ne pas publier les bonnes réponses). Sinon, import depuis /admin/quizzes.
+const importDir = path.join(__dirname, '..', 'data', 'quiz-import');
+const quizFiles = fs.existsSync(importDir) ? fs.readdirSync(importDir).filter((f) => /\.(csv|xlsx)$/i.test(f)) : [];
+(async () => {
+  if (quizFiles.length) {
+    const files = [];
+    for (const f of quizFiles.sort()) files.push({ name: f, rows: await readRows(fs.readFileSync(path.join(importDir, f)), f) });
+    const result = importQuestions(db, files);
+    if (result.errors) console.log('Import des quiz refusé :\n  ' + result.errors.join('\n  '));
+    else console.log(`Quiz importés depuis data/quiz-import : ${result.stats.questionsCreated} questions, ${result.stats.badgesCreated} badges.`);
+  } else {
+    console.log('Aucun fichier dans data/quiz-import : importez vos questions depuis /admin/quizzes.');
+  }
+  console.log('Données de démonstration créées. Mot de passe de tous les comptes : motdepasse123');
+  console.log('  Recruteur : rh@teranga.test (PME)   Candidat : moussa@candidat.test   Admin : admin@jokko.test');
+})();

@@ -1,0 +1,25 @@
+<%- include('partials/header') %>
+<a href="/admin/quizzes" class="small">← Banque de questions</a>
+<div class="row wrap">
+  <div class="grow">
+    <h1><%= quiz.competence %> <span class="tag"><%= LEVELS[quiz.level].label %></span></h1>
+    <p class="muted"><code><%= quiz.badge_code %></code> · <%= quiz.domain %> · série « <%= quiz.family %> » · <%= quiz.question_count %> questions actives
+      <% if (stats.attempts) { %> · <%= stats.attempts %> tentative<%= stats.attempts > 1 ? 's' : '' %>, <%= Math.round((stats.passed / stats.attempts) * 100) %> % de réussite<% } %></p>
+  </div>
+  <form method="post" action="/admin/quizzes/<%= encodeURIComponent(quiz.badge_code) %>/toggle" class="inline">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="back" value="detail">
+    <button class="btn btn-outline"><%= quiz.active ? 'Désactiver ce badge' : 'Réactiver ce badge' %></button>
+  </form>
+</div>
+<% questions.forEach(function (q) { %>
+  <div class="card <%= q.active ? '' : 'muted' %>">
+    <div class="small muted"><code><%= q.external_id %></code><%= q.active ? '' : ' · retirée du tirage' %></div>
+    <strong><%= q.text %></strong>
+    <ol class="answers" type="A">
+      <% q.choices.forEach(function (c, i) { %><li class="<%= i === q.answer_index ? 'ok' : '' %>"><%= c %><%= i === q.answer_index ? ' ✓' : '' %></li><% }) %>
+    </ol>
+    <% if (q.explanation) { %><p class="small muted"><%= q.explanation %></p><% } %>
+  </div>
+<% }) %>
+<%- include('partials/footer') %>

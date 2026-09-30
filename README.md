@@ -5,7 +5,7 @@
 | Pilier | Ce que ça fait |
 | --- | --- |
 | 🎥 **Pitch vidéo** | 90 s enregistrées depuis le téléphone ou l'ordinateur, trame affichée pendant l'enregistrement (0–15 s qui je suis · 15–60 s ce que je sais faire · 60–90 s ce que je cherche), revoir / refaire avant publication, langue au choix (français, wolof, anglais…), vidéo légère (~5 Mo). Affichée en premier sur la carte profil. |
-| ✅ **Quiz de compétences** | Par métier et par niveau (Débutant ~5 min, Intermédiaire ~8 min, Avancé ~13 min). Questions tirées au hasard et réponses mélangées, temps limité par question **contrôlé côté serveur**, abandon = échec, délai avant de retenter, badge à durée de validité. |
+| ✅ **Quiz de compétences** | Banque de questions **importée depuis Excel / CSV** par l'équipe Jokko ; un quiz = un badge (compétence + niveau). Débutant 10 questions × 30 s (5 min), Intermédiaire 12 × 45 s (9 min), Avancé 15 × 60 s (15 min). Questions tirées au hasard et réponses mélangées, temps limité par question **contrôlé côté serveur**, abandon = échec, délai avant de retenter, badge à durée de validité. |
 | 🏅 **Badges et Jokko Score** | Badges issus des quiz, des certifications vérifiées et des écoles Jokko Campus. Score **compétences** plafonné à 100 (meilleur badge valide par compétence) et score **parrainage** calculé à part : parrainer ne compense jamais un manque de compétences. |
 | 📋 **ATS intégré** | CVthèque filtrable (badge + niveau, école, score, vidéo, disponibilité), module **besoin urgent** (journaliers / intérimaires disponibles, classés par Jokko Score), **déblocage du CV** avant l'entrée dans le pipeline en 6 étapes, cloisonnement total par entreprise, offres PME / Corporate. |
 
@@ -25,6 +25,7 @@ npm test          # tests de bout en bout
 Comptes de démo (mot de passe `motdepasse123`) :
 
 - Recruteur (offre PME) : `rh@teranga.test` → **CVthèque**, **ATS**
+- Quiz : connecté en admin, importez vos fichiers dans **Admin → Banque de questions** (ou déposez-les dans `data/quiz-import/` avant `npm run seed`)
 - Candidats : `moussa@candidat.test`, `aissatou@candidat.test` (badges, Jokko Campus, disponible) → **Compétences**, **Profil**
 - Équipe Jokko : `admin@jokko.test` → **Admin** (lancer avec `ADMIN_EMAILS=admin@jokko.test`)
 
@@ -55,11 +56,25 @@ Les candidatures spontanées (Jokko, LinkedIn, Indeed) arrivent dans **Candidatu
 | Jokko Campus | 15 |
 | Parrainage (composante séparée) | 10 par filleul |
 
-Seuil de réussite 70 %, délai de 3 jours après un échec, badge valable 12 mois (renouvelable 30 jours avant l'expiration). Réglages : `src/quiz.js`, `src/score.js` et variables `QUIZ_COOLDOWN_DAYS` / `BADGE_VALIDITY_DAYS`.
+Seuil de réussite 70 %, délai de 3 jours après un échec, badge valable 12 mois (renouvelable 30 jours avant l'expiration). Réglages (questions tirées, secondes par question) : `src/quiz.js`, `src/score.js` et variables `QUIZ_COOLDOWN_DAYS` / `BADGE_VALIDITY_DAYS`.
 
-### Ajouter des quiz
+### Banque de questions (import Excel / CSV)
 
-Les questions sont dans `src/quizzes/bank.js` (bonne réponse toujours en premier, l'ordre est mélangé à l'affichage). Ajoutez les nouvelles questions **à la fin** d'un niveau : leur position sert d'identifiant.
+Les questions ne sont pas dans le code : l'équipe Jokko les importe depuis **Admin → Banque de questions** (`/admin/quizzes`), en une ou plusieurs fois, au format Excel (.xlsx) ou CSV (`;` ou `,`, UTF-8) :
+
+```
+id_question;id_badge;domaine;competence;niveau;question;A;B;C;D;reponse;explication
+JKQ-000451;JKB-00514;Comptabilité & fiscalité;ORBUS Débutant;Débutant;Dans ORBUS, …;Classe 2;Classe 4;Classe 5;Classe 3;C;La classe 5 regroupe …
+```
+
+- **1 badge (`id_badge`) = 1 quiz** : une compétence à un niveau. Les badges d'une même série (« ORBUS Débutant / Intermédiaire / Avancé ») sont regroupés dans le catalogue, et seul le meilleur niveau compte dans le Jokko Score.
+- Réponses **A à F** (au moins 2), `reponse` = lettre de la bonne réponse, `explication` visible seulement par l'équipe Jokko (aperçu d'un badge dans l'admin).
+- **Réimporter** met à jour les questions par `id_question` ; rien n'est jamais supprimé. Colonne facultative `actif` (`non`) pour retirer une question du tirage ; un badge entier se désactive depuis l'admin.
+- **Tout ou rien** : à la moindre erreur (niveau inconnu, lettre de réponse vide, identifiant en double, badge incohérent…), rien n'est importé et chaque erreur est listée avec son fichier et sa ligne.
+- Un badge n'est proposé qu'à partir de 5 questions actives ; prévoir plus que le nombre tiré (10 / 12 / 15) pour varier les tirages.
+- **Modèle** et **export** de toute la banque (Excel ou CSV, réimportable) depuis la même page.
+
+Pour la démo, `npm run seed` importe automatiquement les fichiers déposés dans `data/quiz-import/` (dossier non versionné : les bonnes réponses ne doivent pas être publiées dans le dépôt).
 
 ### Vidéo
 
@@ -119,7 +134,7 @@ src/
   applications.js   création d'une candidature (interne, externe ou CVthèque)
   access.js         déblocage des CV, quotas PME / Corporate
   quiz.js           moteur de quiz (tirage, chronomètre, badges)
-  quizzes/bank.js   banque de questions
+  quizImport.js     import / export Excel et CSV de la banque de questions
   score.js          badges et Jokko Score
   video.js          recompression optionnelle (ffmpeg)
   routes/
@@ -127,7 +142,7 @@ src/
     video.js        pitch vidéo : enregistrement, diffusion
     skills.js       quiz, certifications, Jokko Campus
     talents.js      CVthèque, besoin urgent, déblocage des CV
-    admin.js        vérifications, écoles partenaires, offres
+    admin.js        vérifications, écoles, offres, banque de questions
     feed.js         accueil et fil d'actualité
     profile.js      profils et expériences
     network.js      invitations et relations
@@ -148,4 +163,4 @@ Sécurité : mots de passe bcrypt, jeton CSRF sur tous les formulaires, cookies 
 - Remplacer le stockage de sessions en mémoire par un store persistant (ex. Redis ou un store SQLite).
 - Sauvegarder `data/` et `uploads/` (ou déplacer les CV vers un stockage objet).
 - Installer ffmpeg et définir `FFMPEG_PATH` pour recompresser les vidéos envoyées depuis un téléphone ; stocker les vidéos sur un stockage objet / CDN.
-- Pistes suivantes : paiement des offres PME / Corporate, notifications e-mail et SMS, plusieurs recruteurs par entreprise, planification d'entretiens, espace école pour Jokko Campus, enrichissement de la banque de questions.
+- Pistes suivantes : paiement des offres PME / Corporate, notifications e-mail et SMS, plusieurs recruteurs par entreprise, planification d'entretiens, espace école pour Jokko Campus.

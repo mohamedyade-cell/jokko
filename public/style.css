@@ -308,3 +308,6 @@ fieldset { border: 1px solid var(--border); border-radius: 6px; display: flex; g
 .step { width: 100%; text-align: left; background: #f4f2ee; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit; font-size: .9rem; }
 .step:hover { border-color: var(--primary); }
 .step.current { font-weight: 700; border-color: currentColor; }
+.answers { margin: 6px 0; padding-left: 22px; }
+.answers li.ok { color: var(--primary); font-weight: 600; }
+.flash ul { margin: 6px 0 0; padding-left: 18px; }

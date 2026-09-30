@@ -4,17 +4,29 @@
     <h1>Prouvez vos compétences</h1>
     <p class="muted">Chaque quiz réussi (<%= passPercent %> % de bonnes réponses) débloque un badge et fait monter votre Jokko Score. Questions tirées au hasard, temps limité par question. En cas d'échec, vous pourrez retenter après <%= cooldownDays %> jours. Un badge reste valable <%= Math.round(validityDays / 30) %> mois.</p>
 
-    <% var domains = {}; catalog.forEach(function (q) { (domains[q.domain] = domains[q.domain] || []).push(q); }); %>
-    <% Object.keys(domains).forEach(function (domain) { %>
-      <h2 class="domain-title"><%= domain %></h2>
-      <% domains[domain].forEach(function (q) { %>
+    <form class="card talent-filters" method="get" action="/skills">
+      <input name="q" value="<%= filters.q %>" placeholder="Rechercher une compétence (ex. Sage, trésorerie, SAP…)">
+      <select name="domaine">
+        <option value="">Tous les domaines (<%= total %> badges)</option>
+        <% domains.forEach(function (d) { %><option <%= filters.domaine === d ? 'selected' : '' %>><%= d %></option><% }) %>
+      </select>
+      <button class="btn">Filtrer</button>
+    </form>
+
+    <% if (!total) { %>
+      <div class="card muted">Le catalogue de quiz est en cours de préparation. Revenez bientôt !</div>
+    <% } else if (!catalog.length) { %>
+      <div class="card muted">Aucun badge ne correspond à votre recherche.</div>
+    <% } %>
+
+    <% catalog.forEach(function (domain) { %>
+      <h2 class="domain-title"><%= domain.name %></h2>
+      <% domain.families.forEach(function (f) { %>
         <div class="card quiz-card">
-          <div class="row wrap">
-            <div class="grow"><h3><%= q.title %></h3><p class="muted small"><%= q.description %></p></div>
-          </div>
+          <h3><%= f.name %></h3>
           <div class="levels">
-            <% q.levels.forEach(function (l) { %>
-              <div class="level level-<%= l.key %>">
+            <% f.levels.forEach(function (l) { %>
+              <div class="level level-<%= l.level %>">
                 <div class="level-head"><strong><%= l.label %></strong><span class="muted small"><%= l.questionCount %> questions · ~<%= l.minutes %> min · <%= l.seconds %> s / question</span></div>
                 <% if (l.badge) { %>
                   <div class="small ok">✓ Badge obtenu · valable jusqu'au <%= h.formatDate(l.badge.expires_at) %></div>
@@ -24,7 +36,7 @@
                 <% } else if (l.cooldownUntil) { %>
                   <div class="small muted">Nouvel essai possible le <%= h.formatDate(l.cooldownUntil) %></div>
                 <% } else if (!l.badge || l.renewable) { %>
-                  <form method="post" action="/skills/<%= q.slug %>/<%= l.key %>/start" onsubmit="return confirm('Le chronomètre démarre dès l’affichage de la première question. Quitter le quiz en cours de route compte comme un échec. Commencer ?')">
+                  <form method="post" action="/skills/<%= encodeURIComponent(l.badge_code) %>/start" onsubmit="return confirm('Le chronomètre démarre dès l’affichage de la première question. Quitter le quiz en cours de route compte comme un échec. Commencer ?')">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button class="btn btn-small <%= l.badge ? 'btn-outline' : '' %>"><%= l.badge ? 'Renouveler' : 'Commencer' %></button>
                   </form>
@@ -35,7 +47,6 @@
         </div>
       <% }) %>
     <% }) %>
-    <div class="card muted small"><strong>Bientôt :</strong> <%= upcoming.join(' · ') %>. Le catalogue s'enrichit avec Jokko Campus et nos entreprises partenaires.</div>
   </div>
 
   <aside>
@@ -52,7 +63,7 @@
     <div class="card small">
       <h3>Points par badge</h3>
       <p>Quiz Débutant 10 · Intermédiaire 20 · Avancé 30<br>Certification vérifiée 20 · Jokko Campus 15</p>
-      <p class="muted">Pour chaque compétence, seul votre meilleur niveau compte.</p>
+      <p class="muted">Pour une même compétence (ex. Sage X3), seul votre meilleur niveau compte.</p>
     </div>
   </aside>
 </div>

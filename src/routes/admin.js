@@ -2,7 +2,11 @@ const express = require('express');
 const path = require('node:path');
 const { requireLogin } = require('../auth');
 const { PLANS, transaction } = require('../db');
+const multer = require('multer');
+const { verifyCsrf } = require('../auth');
 const { grantBadge, CERTIFICATION_POINTS, CAMPUS_POINTS } = require('../score');
+const quiz = require('../quiz');
+const quizImport = require('../quizImport');
 
 const router = express.Router();
 
@@ -73,6 +77,106 @@ router.post('/admin/schools', adminOnly, (req, res) => {
 router.post('/admin/companies/:id/plan', adminOnly, (req, res) => {
   if (PLANS[req.body.plan]) req.app.locals.db.prepare('UPDATE companies SET plan = ? WHERE id = ?').run(req.body.plan, Number(req.params.id));
   res.redirect('/admin');
+});
+
+// ---------- Banque de questions : import Excel / CSV ----------
+
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 20 },
+  fileFilter: (req, file, cb) => {
+    if (['.csv', '.xlsx', '.txt'].includes(path.extname(file.originalname).toLowerCase())) return cb(null, true);
+    const err = new Error('Seuls les fichiers Excel (.xlsx) et CSV sont acceptés.');
+    err.code = 'INVALID_FILE_TYPE';
+    cb(err);
+  },
+});
+
+function renderQuizAdmin(req, res, extra = {}) {
+  const db = req.app.locals.db;
+  const quizzes = quiz.listQuizzes(db, { includeInactive: true });
+  const imports = db
+    .prepare('SELECT i.*, u.name AS user_name FROM quiz_imports i LEFT JOIN users u ON u.id = i.imported_by ORDER BY i.id DESC LIMIT 10')
+    .all()
+    .map((i) => ({ ...i, files: JSON.parse(i.files), summary: JSON.parse(i.summary) }));
+  const totals = {
+    badges: quizzes.length,
+    questions: db.prepare('SELECT COUNT(*) AS n FROM quiz_questions WHERE active = 1').get().n,
+    attempts: db.prepare('SELECT COUNT(*) AS n FROM quiz_attempts').get().n,
+  };
+  res.status(extra.errors ? 400 : 200).render('admin-quizzes', {
+    title: 'Banque de questions',
+    quizzes,
+    imports,
+    totals,
+    LEVELS: quiz.LEVELS,
+    MIN_QUESTIONS: quiz.MIN_QUESTIONS,
+    errors: null,
+    ...extra,
+  });
+}
+
+router.get('/admin/quizzes', adminOnly, (req, res) => renderQuizAdmin(req, res));
+
+router.post('/admin/quizzes/import', adminOnly, (req, res, next) => {
+  importUpload.array('files')(req, res, async (err) => {
+    if (err) return next(err);
+    verifyCsrf(req, res, async () => {
+      try {
+        if (!req.files || !req.files.length) return renderQuizAdmin(req, res, { errors: ['Choisissez au moins un fichier.'] });
+        const files = [];
+        for (const f of req.files) files.push({ name: f.originalname, rows: await quizImport.readRows(f.buffer, f.originalname) });
+        const result = quizImport.importQuestions(req.app.locals.db, files, req.user.id);
+        if (result.errors) return renderQuizAdmin(req, res, { errors: result.errors });
+        const st = result.stats;
+        req.session.flash = {
+          type: 'success',
+          message: `Import réussi : ${st.questionsCreated} question(s) ajoutée(s), ${st.questionsUpdated} mise(s) à jour, ${st.badgesCreated} nouveau(x) badge(s).`,
+        };
+        res.redirect('/admin/quizzes');
+      } catch (e) {
+        renderQuizAdmin(req, res, { errors: [`Fichier illisible : ${e.message}`] });
+      }
+    });
+  });
+});
+
+async function sendRows(res, rows, basename, format) {
+  if (format === 'xlsx') {
+    const writeXlsx = require('write-excel-file/node').default;
+    const buffer = await writeXlsx(rows.map((r, i) => r.map((v) => ({ value: String(v ?? ''), fontWeight: i === 0 ? 'bold' : undefined })))).toBuffer();
+    res.attachment(`${basename}.xlsx`).type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(buffer);
+  } else {
+    res.attachment(`${basename}.csv`).type('text/csv; charset=utf-8').send(quizImport.toCsv(rows));
+  }
+}
+
+router.get('/admin/quizzes/modele.:format', adminOnly, (req, res, next) => {
+  sendRows(res, quizImport.TEMPLATE_ROWS, 'modele-questions-jokko', req.params.format).catch(next);
+});
+
+router.get('/admin/quizzes/export.:format', adminOnly, (req, res, next) => {
+  sendRows(res, quizImport.exportRows(req.app.locals.db), `questions-jokko-${new Date().toISOString().slice(0, 10)}`, req.params.format).catch(next);
+});
+
+// Aperçu d'un badge avec les bonnes réponses et explications (réservé à l'équipe Jokko).
+router.get('/admin/quizzes/:code', adminOnly, (req, res) => {
+  const db = req.app.locals.db;
+  const z = quiz.getQuiz(db, req.params.code);
+  if (!z) return res.status(404).render('error', { title: 'Badge introuvable', message: "Ce badge n'existe pas." });
+  const questions = db
+    .prepare('SELECT * FROM quiz_questions WHERE quiz_id = ? ORDER BY external_id')
+    .all(z.id)
+    .map((q) => ({ ...q, choices: JSON.parse(q.choices) }));
+  const stats = db
+    .prepare("SELECT COUNT(*) AS attempts, SUM(status = 'passed') AS passed FROM quiz_attempts WHERE quiz_slug = ? AND status != 'in_progress'")
+    .get(z.badge_code);
+  res.render('admin-quiz', { title: `${z.badge_code} · ${z.competence}`, quiz: z, questions, stats, LEVELS: quiz.LEVELS });
+});
+
+router.post('/admin/quizzes/:code/toggle', adminOnly, (req, res) => {
+  req.app.locals.db.prepare("UPDATE quizzes SET active = 1 - active, updated_at = datetime('now') WHERE badge_code = ?").run(req.params.code);
+  res.redirect(req.body.back === 'detail' ? `/admin/quizzes/${encodeURIComponent(req.params.code)}` : '/admin/quizzes');
 });
 
 module.exports = router;

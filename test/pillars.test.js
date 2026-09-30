@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const request = require('supertest');
-const { makeApp, csrf, register, createJob, userId } = require('./helpers');
+const { makeApp, csrf, register, createJob, userId, importFixture } = require('./helpers');
 const { grantBadge } = require('../src/score');
 
 function attemptRow(app, id) {
@@ -12,15 +12,19 @@ function attemptRow(app, id) {
   return { ...row, questions: JSON.parse(row.questions) };
 }
 
-// Position affichée de la bonne réponse (index 0 de la banque, après mélange).
+// Position affichée de la bonne réponse (après mélange des réponses).
 function correctPos(app, attemptId) {
   const a = attemptRow(app, attemptId);
-  return a.questions[a.current_index].order.indexOf(0);
+  const entry = a.questions[a.current_index];
+  const { answer_index: answer } = app.locals.db.prepare('SELECT answer_index FROM quiz_questions WHERE id = ?').get(entry.q);
+  return entry.order.indexOf(answer);
 }
 
-async function startQuiz(agent, slug, level) {
+// Badges de la banque fictive : T01 Excel Débutant, T02 Excel Intermédiaire, T03 Comptabilité,
+// T04 Service client, T05 Sécurité, T06 Word (3 questions : non proposé).
+async function startQuiz(agent, badgeCode) {
   const _csrf = await csrf(agent, '/skills');
-  const res = await agent.post(`/skills/${slug}/${level}/start`).type('form').send({ _csrf });
+  const res = await agent.post(`/skills/${badgeCode}/start`).type('form').send({ _csrf });
   assert.equal(res.status, 302);
   return res.headers.location;
 }
@@ -46,25 +50,27 @@ describe('Pilier 2 et 3 : quiz, badges et Jokko Score', () => {
 
   before(async () => {
     app = makeApp();
+    importFixture(app);
     candidate = await register(app, { role: 'candidate', email: 'awa@test.sn', name: 'Awa Diallo' });
   });
 
   test('un quiz réussi débloque un badge et fait monter le score', async () => {
-    const location = await startQuiz(candidate, 'excel', 'debutant');
+    const location = await startQuiz(candidate, 'JKB-T01');
     const attemptId = Number(location.split('/').pop());
     const attempt = attemptRow(app, attemptId);
-    assert.equal(attempt.questions.length, 6);
-    assert.equal(new Set(attempt.questions.map((q) => q.i)).size, 6, 'questions distinctes');
+    assert.equal(attempt.questions.length, 10, '10 questions tirées parmi les 14 du badge');
+    assert.equal(new Set(attempt.questions.map((q) => q.q)).size, 10, 'questions distinctes');
 
     // La page de question ne révèle pas la bonne réponse et démarre le chronomètre.
     const page = await candidate.get(location);
-    assert.match(page.text, /Question 1 sur 6/);
+    assert.match(page.text, /Question 1 sur 10/);
+    assert.match(page.text, /Question \d+ ; « Excel Débutant » \?/);
     assert.doesNotMatch(page.text, /data-correct|"answer"|correct_count/i);
     assert.ok(attemptRow(app, attemptId).question_served_ms);
 
-    const done = await finishQuiz(app, candidate, attemptId, 6);
+    const done = await finishQuiz(app, candidate, attemptId, 10);
     assert.equal(done.status, 'passed');
-    assert.equal(done.correct_count, 6);
+    assert.equal(done.correct_count, 10);
 
     const res = await candidate.get(location);
     assert.match(res.text, /Badge débloqué/);
@@ -76,14 +82,26 @@ describe('Pilier 2 et 3 : quiz, badges et Jokko Score', () => {
     const skills = await candidate.get('/skills');
     assert.match(skills.text, /<strong>10 \/ 100<\/strong>/);
     // Badge valide : pas de nouvelle tentative possible avant la fenêtre de renouvellement.
-    const again = await startQuiz(candidate, 'excel', 'debutant');
+    const again = await startQuiz(candidate, 'JKB-T01');
     assert.equal(again, '/skills');
   });
 
+  test('le catalogue vient de la banque importée ; un badge avec trop peu de questions n’est pas proposé', async () => {
+    const page = await candidate.get('/skills');
+    assert.match(page.text, /Sécurité au travail/);
+    assert.match(page.text, /<h3>Excel<\/h3>/);
+    assert.doesNotMatch(page.text, /<h3>Word<\/h3>/);
+    assert.equal(await startQuiz(candidate, 'JKB-T06'), '/skills');
+    assert.equal(await startQuiz(candidate, 'JKB-INCONNU'), '/skills');
+    const filtered = await candidate.get('/skills').query({ q: 'secur' });
+    assert.match(filtered.text, /Sécurité au travail/);
+    assert.doesNotMatch(filtered.text, /<h3>Excel<\/h3>/);
+  });
+
   test('une réponse hors délai compte comme fausse, un double envoi est ignoré', async () => {
-    const attemptId = Number((await startQuiz(candidate, 'securite', 'debutant')).split('/').pop());
+    const attemptId = Number((await startQuiz(candidate, 'JKB-T05')).split('/').pop());
     await candidate.get(`/quiz/${attemptId}`);
-    // Simule une réponse 2 minutes après l'affichage (limite : 50 s + 5 s de tolérance).
+    // Simule une réponse 2 minutes après l'affichage (limite : 30 s + 5 s de tolérance).
     app.locals.db.prepare('UPDATE quiz_attempts SET question_served_ms = ? WHERE id = ?').run(Date.now() - 120000, attemptId);
     const pos = correctPos(app, attemptId);
     const _csrf = await csrf(candidate, '/skills');
@@ -99,26 +117,26 @@ describe('Pilier 2 et 3 : quiz, badges et Jokko Score', () => {
   });
 
   test('abandonner un quiz compte comme un échec, puis délai d’attente avant de retenter', async () => {
-    const first = Number((await startQuiz(candidate, 'comptabilite', 'debutant')).split('/').pop());
-    const second = Number((await startQuiz(candidate, 'service-client', 'debutant')).split('/').pop());
+    const first = Number((await startQuiz(candidate, 'JKB-T03')).split('/').pop());
+    const second = Number((await startQuiz(candidate, 'JKB-T04')).split('/').pop());
     assert.notEqual(first, second);
     assert.equal(attemptRow(app, first).status, 'failed');
 
     // Retenter le quiz abandonné est bloqué pendant le délai d'attente.
-    const blocked = await startQuiz(candidate, 'comptabilite', 'debutant');
+    const blocked = await startQuiz(candidate, 'JKB-T03');
     assert.equal(blocked, '/skills');
     const page = await candidate.get('/skills');
     assert.match(page.text, /Nouvel essai possible le/);
 
     // Après le délai, c'est de nouveau possible.
     app.locals.db.prepare("UPDATE quiz_attempts SET finished_at = datetime('now', '-4 days') WHERE id = ?").run(first);
-    const retry = await startQuiz(candidate, 'comptabilite', 'debutant');
+    const retry = await startQuiz(candidate, 'JKB-T03');
     assert.match(retry, /^\/quiz\/\d+$/);
   });
 
   test('un score sous le seuil fait échouer le quiz sans badge', async () => {
-    const attemptId = Number((await startQuiz(candidate, 'excel', 'intermediaire')).split('/').pop());
-    const done = await finishQuiz(app, candidate, attemptId, 5); // 5/8 = 62 % < 70 %
+    const attemptId = Number((await startQuiz(candidate, 'JKB-T02')).split('/').pop());
+    const done = await finishQuiz(app, candidate, attemptId, 8); // 8/12 = 67 % < 70 %
     assert.equal(done.status, 'failed');
     const badge = app.locals.db.prepare("SELECT 1 FROM badges WHERE user_id = ? AND level = 'intermediaire'").get(userId(app, 'awa@test.sn'));
     assert.equal(badge, undefined);
@@ -199,6 +217,7 @@ describe('Pilier 4 : CVthèque, déblocage du CV et offres PME / Corporate', () 
 
   before(async () => {
     app = makeApp();
+    importFixture(app);
     const db = app.locals.db;
     recruiter = await register(app, { role: 'recruiter', email: 'rh@pme.sn', name: 'RH PME', company: 'PME Dakar' });
     jobId = await createJob(recruiter, { title: 'Assistant comptable', contract_type: 'CDD' });

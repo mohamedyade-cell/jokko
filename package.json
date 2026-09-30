@@ -18,7 +18,9 @@
     "ejs": "^6.0.1",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "read-excel-file": "^9.3.10",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
     "supertest": "^7.3.0"
