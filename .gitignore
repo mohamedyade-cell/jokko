@@ -1,0 +1,22 @@
+# Données et secrets : jamais versionnés
+.env
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.xlsx
+*.xlsm
+*.pdf
+data/
+demo_fictif/
+pdf/
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+# Frontend
+frontend/node_modules/
+frontend/dist/
