@@ -1,0 +1,32 @@
+# Déploiement serveur interne : application + PostgreSQL.
+# Les secrets sont lus dans le fichier .env (non versionné), voir .env.example.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: radar
+      POSTGRES_USER: radar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définir POSTGRES_PASSWORD dans .env}
+    volumes:
+      - radar_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U radar"]
+      interval: 10s
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      RADAR_DATABASE_URL: postgresql+psycopg://radar:${POSTGRES_PASSWORD}@db:5432/radar
+      RADAR_PDF_DIR: /pdf
+    volumes:
+      - ${RADAR_PDF_HOST_DIR:-./pdf}:/pdf:ro
+      - ./import:/import:ro
+    ports:
+      - "127.0.0.1:8000:8000"   # exposé localement : placer un reverse proxy HTTPS interne devant
+volumes:
+  radar_pg:

@@ -173,3 +173,18 @@ def test_audit_immuable(db, imported):
     with pytest.raises(AuditImmuableError):
         db.flush()
     db.rollback()
+
+
+def test_entra_correspondance_compte(db, users):
+    from fastapi import HTTPException
+
+    from app.routers.auth import utilisateur_depuis_claims
+
+    u = utilisateur_depuis_claims(db, {"oid": "oid-123", "preferred_username": "FX1@fictif.example"})
+    assert u.login == "fx1" and u.entra_oid == "oid-123"
+    assert utilisateur_depuis_claims(db, {"oid": "oid-123"}).login == "fx1"  # liaison par oid ensuite
+    with pytest.raises(HTTPException):  # aucun compte créé automatiquement
+        utilisateur_depuis_claims(db, {"oid": "x", "preferred_username": "inconnu@fictif.example"})
+    users["fx2"].actif = False
+    with pytest.raises(HTTPException):
+        utilisateur_depuis_claims(db, {"preferred_username": "fx2@fictif.example"})

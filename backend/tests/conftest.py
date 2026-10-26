@@ -29,6 +29,18 @@ UTILISATEURS = [
 
 @pytest.fixture
 def db_url(tmp_path):
+    # RADAR_TEST_DATABASE_URL=postgresql+psycopg://… : exécute la suite sur PostgreSQL (base vidée à chaque test)
+    url = os.environ.get("RADAR_TEST_DATABASE_URL")
+    if url:
+        from sqlalchemy import create_engine
+
+        from app.db import Base
+        from app import models  # noqa: F401
+
+        eng = create_engine(url)
+        Base.metadata.drop_all(eng)
+        eng.dispose()
+        return url
     return f"sqlite:///{tmp_path / 'test.db'}"
 
 

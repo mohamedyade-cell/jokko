@@ -128,6 +128,7 @@ def utilisateur_depuis_claims(db: Session, claims: dict) -> Utilisateur:
         user = db.query(Utilisateur).filter(Utilisateur.email == email).first()
         if user is not None and oid and user.entra_oid is None:
             user.entra_oid = oid
+            db.flush()
     if user is None or not user.actif:
         raise HTTPException(403, "Compte Microsoft 365 non autorisé : demandez l'ouverture d'un accès au Responsable Capital Market")
     return user
